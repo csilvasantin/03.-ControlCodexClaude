@@ -1,6 +1,7 @@
 {
   "team": "AdmiraNext Team",
-  "updatedAt": "2026-03-21T18:10:00Z",
+  "updatedAt": "2026-03-21T19:00:00Z",
+  "tailnet": "tail48b61c.ts.net",
   "machines": [
     {
       "id": "admira-mac-01",
@@ -19,8 +20,11 @@
         "enabled": true,
         "user": "csilvasantin",
         "host": "admira-mac-01.local",
-        "ip": "192.168.0.120",
-        "connect": "ssh csilvasantin@192.168.0.120"
+        "ip_local": "192.168.0.120",
+        "ip_tailscale": null,
+        "connect_local": "ssh csilvasantin@192.168.0.120",
+        "connect_tailscale": null,
+        "note": "Pendiente conectar a Tailscale"
       }
     },
     {
@@ -40,8 +44,11 @@
         "enabled": true,
         "user": "carlos",
         "host": "MacBookAirCarla.local",
-        "ip": "192.168.0.118",
-        "connect": "ssh carlos@192.168.0.118"
+        "ip_local": "192.168.0.118",
+        "ip_tailscale": null,
+        "connect_local": "ssh carlos@192.168.0.118",
+        "connect_tailscale": null,
+        "note": "Pendiente conectar a Tailscale"
       }
     },
     {
@@ -61,7 +68,10 @@
         "enabled": false,
         "user": null,
         "host": null,
-        "connect": null,
+        "ip_local": null,
+        "ip_tailscale": null,
+        "connect_local": null,
+        "connect_tailscale": null,
         "note": "Pendiente activar OpenSSH Server en Windows"
       }
     },
@@ -75,15 +85,41 @@
       "location": "Madrid",
       "platform": "macOS 26.3.1",
       "status": "online",
-      "lastSeen": "2026-03-21T18:10:00Z",
-      "currentFocus": "Onboarding completado, SSH activo, gh CLI instalado",
-      "note": "SSH activado hoy. IP local: 192.168.0.107",
+      "lastSeen": "2026-03-21T19:00:00Z",
+      "currentFocus": "Tailscale activo, SSH activo, gh CLI instalado",
+      "note": "Tailscale conectado. DNS: macbook-air-de-carla.tail48b61c.ts.net",
       "ssh": {
         "enabled": true,
         "user": "csilvasantin",
-        "host": "MacBook-Air-de-Carla.local",
-        "ip": "192.168.0.107",
-        "connect": "ssh csilvasantin@192.168.0.107"
+        "host": "macbook-air-de-carla.tail48b61c.ts.net",
+        "ip_local": "192.168.0.107",
+        "ip_tailscale": "100.110.80.2",
+        "connect_local": "ssh csilvasantin@192.168.0.107",
+        "connect_tailscale": "ssh csilvasantin@100.110.80.2"
+      }
+    },
+    {
+      "id": "admira-macmini",
+      "color": null,
+      "member": "Desconocido",
+      "role": "Pendiente identificar",
+      "name": "MacMini",
+      "machineRole": "Equipo en red",
+      "location": "Madrid",
+      "platform": "macOS",
+      "status": "online",
+      "lastSeen": "2026-03-21T19:00:00Z",
+      "currentFocus": "Tailscale activo, SSH pendiente activar",
+      "note": "DNS: macmini.tail48b61c.ts.net — SSH no activo aun",
+      "ssh": {
+        "enabled": false,
+        "user": null,
+        "host": "macmini.tail48b61c.ts.net",
+        "ip_local": null,
+        "ip_tailscale": "100.74.101.14",
+        "connect_local": null,
+        "connect_tailscale": "ssh usuario@100.74.101.14",
+        "note": "Activar Remote Login en System Settings"
       }
     }
   ]
