@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AdmiraNext — Mapa de Red</title>
+    <link rel="stylesheet" href="./styles.css?v=20260321-2">
+    <style>
+      .map-wrap {
+        margin-top: 18px;
+        border: 1px solid rgba(23,49,39,0.12);
+        border-radius: 28px;
+        background: rgba(255,255,255,0.84);
+        backdrop-filter: blur(12px);
+        box-shadow: 0 16px 40px rgba(23,49,39,0.06);
+        padding: 32px;
+        display: flex;
+        justify-content: center;
+      }
+      svg { width: 100%; max-width: 780px; height: auto; }
+
+      .node-box {
+        rx: 16; ry: 16;
+        filter: drop-shadow(0 4px 12px rgba(23,49,39,0.10));
+      }
+      .label-main { font: 700 15px "Avenir Next","Segoe UI",sans-serif; fill: #173127; }
+      .label-sub  { font: 400 12px "Avenir Next","Segoe UI",sans-serif; fill: #5f7469; }
+      .label-ip   { font: 600 13px "SF Mono","Fira Mono",monospace;     fill: #1a7f5a; }
+      .label-ssh  { font: 400 11px "SF Mono","Fira Mono",monospace;     fill: #5f7469; }
+      .badge      { font: 700 10px "Avenir Next","Segoe UI",sans-serif; fill: white; letter-spacing:.06em; }
+      .link { stroke: rgba(23,49,39,0.18); stroke-width: 2; fill: none; stroke-dasharray: 6 4; }
+      .link-active { stroke: #1a7f5a; stroke-width: 2.5; fill: none; }
+      .link-offline { stroke: rgba(139,91,99,0.35); stroke-width: 2; fill: none; stroke-dasharray: 4 6; }
+
+      .dot { r: 5; }
+      .dot-online { fill: #1a7f5a; }
+      .dot-busy   { fill: #d0891f; }
+      .dot-offline{ fill: #8b5b63; }
+    </style>
+  </head>
+  <body>
+    <main class="app">
+      <header class="hero">
+        <p class="eyebrow">Infraestructura</p>
+        <h1>Mapa de Red</h1>
+        <p class="subtitle">Equipos del equipo AdmiraNext en red local — 192.168.0.x</p>
+      </header>
+
+      <div class="map-wrap">
+        <svg viewBox="0 0 780 520" xmlns="http://www.w3.org/2000/svg">
+
+          <!-- Links -->
+          <line class="link-active" x1="390" y1="200" x2="160" y2="120"/>
+          <line class="link-active" x1="390" y1="200" x2="620" y2="120"/>
+          <line class="link-active" x1="390" y1="200" x2="390" y2="340"/>
+          <line class="link-offline" x1="390" y1="200" x2="160" y2="380"/>
+
+          <!-- ROUTER -->
+          <rect class="node-box" x="310" y="148" width="160" height="90" fill="#173127" rx="16"/>
+          <text class="label-main" x="390" y="182" text-anchor="middle" fill="white">Router</text>
+          <text class="label-ip"   x="390" y="202" text-anchor="middle" fill="#7ecdb0">192.168.0.1</text>
+          <text class="label-sub"  x="390" y="222" text-anchor="middle" fill="rgba(255,255,255,0.5)">Gateway</text>
+
+          <!-- CESAR — plata — 192.168.0.120 -->
+          <rect class="node-box" x="60" y="48" width="200" height="110" fill="#f0f0f0" rx="16"/>
+          <rect x="60" y="48" width="200" height="28" fill="#b0b8b4" rx="16"/>
+          <rect x="60" y="62" width="200" height="14" fill="#b0b8b4"/>
+          <text class="badge"      x="160" y="67"  text-anchor="middle">ONLINE</text>
+          <text class="label-main" x="160" y="98"  text-anchor="middle">Cesar</text>
+          <text class="label-sub"  x="160" y="115" text-anchor="middle">Mac principal · plata</text>
+          <text class="label-ip"   x="160" y="133" text-anchor="middle">192.168.0.120</text>
+          <text class="label-ssh"  x="160" y="149" text-anchor="middle">ssh csilvasantin@192.168.0.120</text>
+          <circle class="dot dot-online" cx="238" cy="62"/>
+
+          <!-- CARLOS — azul — 192.168.0.118 -->
+          <rect class="node-box" x="520" y="48" width="200" height="110" fill="#e8f0fb" rx="16"/>
+          <rect x="520" y="48" width="200" height="28" fill="#d0891f" rx="16"/>
+          <rect x="520" y="62" width="200" height="14" fill="#d0891f"/>
+          <text class="badge"      x="620" y="67"  text-anchor="middle">BUSY</text>
+          <text class="label-main" x="620" y="98"  text-anchor="middle">Carlos</text>
+          <text class="label-sub"  x="620" y="115" text-anchor="middle">Mac onboarding · azul</text>
+          <text class="label-ip"   x="620" y="133" text-anchor="middle">192.168.0.118</text>
+          <text class="label-ssh"  x="620" y="149" text-anchor="middle">ssh carlos@192.168.0.118</text>
+          <circle class="dot dot-busy" cx="698" cy="62"/>
+
+          <!-- CARLA — gris — 192.168.0.107 -->
+          <rect class="node-box" x="290" y="340" width="200" height="120" fill="#f5f5f5" rx="16"/>
+          <rect x="290" y="340" width="200" height="28" fill="#1a7f5a" rx="16"/>
+          <rect x="290" y="354" width="200" height="14" fill="#1a7f5a"/>
+          <text class="badge"      x="390" y="359" text-anchor="middle">ONLINE · ESTE EQUIPO</text>
+          <text class="label-main" x="390" y="390" text-anchor="middle">Carla</text>
+          <text class="label-sub"  x="390" y="407" text-anchor="middle">MacBook Air · gris</text>
+          <text class="label-ip"   x="390" y="425" text-anchor="middle">192.168.0.107</text>
+          <text class="label-ssh"  x="390" y="441" text-anchor="middle">ssh csilvasantin@192.168.0.107</text>
+          <circle class="dot dot-online" cx="468" cy="354"/>
+
+          <!-- LABORATORIO — negro — offline -->
+          <rect class="node-box" x="60" y="320" width="200" height="110" fill="#e8e8e8" rx="16"/>
+          <rect x="60" y="320" width="200" height="28" fill="#8b5b63" rx="16"/>
+          <rect x="60" y="334" width="200" height="14" fill="#8b5b63"/>
+          <text class="badge"      x="160" y="339" text-anchor="middle">OFFLINE</text>
+          <text class="label-main" x="160" y="368" text-anchor="middle">Laboratorio</text>
+          <text class="label-sub"  x="160" y="385" text-anchor="middle">PC auxiliar · negro</text>
+          <text class="label-sub"  x="160" y="402" text-anchor="middle">Windows · pendiente</text>
+          <text class="label-ssh"  x="160" y="420" text-anchor="middle">OpenSSH pendiente</text>
+          <circle class="dot dot-offline" cx="238" cy="334"/>
+
+          <!-- Leyenda -->
+          <g transform="translate(30, 490)">
+            <circle cx="8" cy="0" r="5" fill="#1a7f5a"/>
+            <text class="label-sub" x="18" y="4">online</text>
+            <circle cx="78" cy="0" r="5" fill="#d0891f"/>
+            <text class="label-sub" x="88" y="4">busy</text>
+            <circle cx="140" cy="0" r="5" fill="#8b5b63"/>
+            <text class="label-sub" x="150" y="4">offline</text>
+            <text class="label-sub" x="340" y="4" text-anchor="end">Red local 192.168.0.0/24</text>
+          </g>
+
+        </svg>
+      </div>
+
+      <p style="text-align:center; color: #5f7469; margin-top:18px; font-size:13px;">
+        Actualizado 21/03/2026 · <a href="./index.html" style="color:#1a7f5a">Ver panel de equipo</a>
+      </p>
+    </main>
+  </body>
+</html>
