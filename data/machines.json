@@ -17,9 +17,10 @@
       "note": "Equipo principal de trabajo",
       "ssh": {
         "enabled": true,
-        "user": "cesar",
+        "user": "csilvasantin",
         "host": "admira-mac-01.local",
-        "connect": "ssh cesar@admira-mac-01.local"
+        "ip": "192.168.0.120",
+        "connect": "ssh csilvasantin@192.168.0.120"
       }
     },
     {
