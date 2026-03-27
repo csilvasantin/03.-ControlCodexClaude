@@ -154,6 +154,7 @@ const server = createServer(async (request, response) => {
     const rawBody = await readRequestBody(request);
     const parsed = rawBody ? JSON.parse(rawBody) : {};
     const prompt = parsed.prompt?.trim();
+    const target = parsed.target || "all";
     if (!prompt) {
       sendJson(response, 400, { error: "prompt obligatorio" });
       return;
@@ -161,11 +162,11 @@ const server = createServer(async (request, response) => {
 
     const data = await readMachines();
     const sshEnabled = data.machines.filter((m) => m.ssh?.enabled);
+    const targets = target === "all" ? ["claude", "codex"] : [target];
     const results = await Promise.allSettled(
-      sshEnabled.flatMap((machine) => [
-        sendPromptToMachine(machine.id, prompt, "claude"),
-        sendPromptToMachine(machine.id, prompt, "codex")
-      ])
+      sshEnabled.flatMap((machine) =>
+        targets.map((t) => sendPromptToMachine(machine.id, prompt, t))
+      )
     );
 
     const output = results.map((r) => {

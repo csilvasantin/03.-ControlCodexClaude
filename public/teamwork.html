@@ -452,10 +452,16 @@
 
       <section class="tw-panel">
         <div class="tw-command">
-          <div style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;">
+          <div style="display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;">
             <input class="tw-quick" id="quickInput" type="text"
-                   placeholder="Escribe un prompt para todos los equipos (Claude + Codex)..."
+                   placeholder="Escribe un prompt para todos los equipos..."
                    autocomplete="off" autofocus>
+            <select class="tw-select" id="sendAllTarget" style="height:100%;min-width:120px;">
+              <option value="all">Claude + Codex</option>
+              <option value="claude">Solo Claude</option>
+              <option value="codex">Solo Codex</option>
+              <option value="terminal">Solo Terminal</option>
+            </select>
             <button class="tw-send" id="sendAllBtn" style="height:100%;">Enviar a todos</button>
           </div>
         </div>
@@ -492,6 +498,6 @@
       AdmiraNext Control v1.5.0 — 2026-03-27
     </footer>
 
-    <script src="./teamwork.js?v=20260327-23" type="module"></script>
+    <script src="./teamwork.js?v=20260327-24" type="module"></script>
   </body>
 </html>

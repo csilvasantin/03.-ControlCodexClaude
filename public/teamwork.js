@@ -63,19 +63,23 @@ function parseQuickInput(text) {
   return null;
 }
 
+const sendAllTarget = document.querySelector("#sendAllTarget");
+
 async function sendToAll(prompt) {
   sendAllBtn.disabled = true;
   sendAllBtn.textContent = "Enviando...";
+  const target = sendAllTarget.value;
 
   try {
     const res = await fetch(apiUrl("/api/teamwork/send-all"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt })
+      body: JSON.stringify({ prompt, target })
     });
     const data = await res.json();
     const ok = data.results.filter((r) => r.ok).length;
-    showFeedback(`Enviado a ${ok} destinos (Claude + Codex en todos los equipos)`, true);
+    const label = target === "all" ? "Claude + Codex" : target.charAt(0).toUpperCase() + target.slice(1);
+    showFeedback(`Enviado a ${ok} destinos (${label} en todos los equipos)`, true);
     quickInput.value = "";
   } catch (err) {
     showFeedback(`Error: ${err.message}`, false);
