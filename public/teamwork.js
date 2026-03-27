@@ -241,19 +241,30 @@ function renderMachineApproveList(snapshots) {
       : `<div class="tw-machine-snapshot-empty">Sin captura</div>`;
     return `
     <div class="tw-machine-row" data-id="${m.id}">
-      <div class="tw-machine-info">
-        ${snapshotHtml}
-        <div>
-          <span class="tw-machine-name">${m.name}</span><br>
-          <span class="tw-machine-member">${m.member}</span>
+      <div class="tw-machine-top">
+        <div class="tw-machine-info">
+          ${snapshotHtml}
+          <div>
+            <span class="tw-machine-name">${m.name}</span><br>
+            <span class="tw-machine-member">${m.member}</span>
+          </div>
         </div>
+        <button class="tw-approve-sm claude" data-machine="${m.id}" data-target="claude">Claude</button>
+        <button class="tw-approve-sm codex" data-machine="${m.id}" data-target="codex">Codex</button>
       </div>
-      <button class="tw-approve-sm claude" data-machine="${m.id}" data-target="claude">Claude</button>
-      <button class="tw-approve-sm codex" data-machine="${m.id}" data-target="codex">Codex</button>
+      <div class="tw-machine-actions">
+        <input class="tw-machine-input" data-machine="${m.id}" type="text" placeholder="Enviar prompt a ${m.name}...">
+        <select class="tw-approve-sm" data-machine-target="${m.id}" style="background:var(--panel);color:var(--ink);border:1px solid var(--line);padding:7px 8px;font-size:11px;">
+          <option value="claude">Claude</option>
+          <option value="codex">Codex</option>
+          <option value="terminal">Terminal</option>
+        </select>
+        <button class="tw-machine-send" data-machine-send="${m.id}">Enviar</button>
+      </div>
     </div>`;
   }).join("");
 
-  machineApproveList.querySelectorAll(".tw-approve-sm").forEach((btn) => {
+  machineApproveList.querySelectorAll(".tw-approve-sm[data-machine]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const machineId = btn.dataset.machine;
       const target = btn.dataset.target;
@@ -273,6 +284,47 @@ function renderMachineApproveList(snapshots) {
       } catch {
         btn.textContent = "Error";
         setTimeout(() => { btn.textContent = origText; btn.disabled = false; }, 2000);
+      }
+    });
+  });
+
+  // Per-machine send prompt
+  machineApproveList.querySelectorAll(".tw-machine-send").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const machineId = btn.dataset.machineSend;
+      const input = machineApproveList.querySelector(`.tw-machine-input[data-machine="${machineId}"]`);
+      const targetSel = machineApproveList.querySelector(`select[data-machine-target="${machineId}"]`);
+      const prompt = input?.value.trim();
+      if (!prompt) return;
+
+      btn.disabled = true;
+      btn.textContent = "...";
+
+      try {
+        const res = await fetch(apiUrl("/api/teamwork/send"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ machineId, prompt, target: targetSel?.value || "claude" })
+        });
+        const data = await res.json();
+        btn.textContent = data.ok ? "OK" : "Error";
+        if (data.ok) input.value = "";
+        setTimeout(() => { btn.textContent = "Enviar"; btn.disabled = false; }, 2000);
+        loadHistory();
+      } catch {
+        btn.textContent = "Error";
+        setTimeout(() => { btn.textContent = "Enviar"; btn.disabled = false; }, 2000);
+      }
+    });
+  });
+
+  // Enter to send per-machine
+  machineApproveList.querySelectorAll(".tw-machine-input").forEach((input) => {
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const machineId = input.dataset.machine;
+        machineApproveList.querySelector(`.tw-machine-send[data-machine-send="${machineId}"]`)?.click();
       }
     });
   });
