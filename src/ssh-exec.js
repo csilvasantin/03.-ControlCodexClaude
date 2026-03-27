@@ -1,7 +1,10 @@
 import { execFile } from "node:child_process";
 import { resolve } from "node:path";
 import { mkdir } from "node:fs/promises";
+import { hostname } from "node:os";
 import { readMachines } from "./store.js";
+
+const LOCAL_HOSTNAME = hostname().replace(/\.local$/, "").toLowerCase();
 
 const TIMEOUT_MS = 15_000;
 const CAPTURE_DELAY_MS = 4000;
@@ -9,6 +12,27 @@ const SCREENSHOTS_DIR = resolve(import.meta.dirname, "../data/screenshots");
 
 // Ensure screenshots dir exists
 mkdir(SCREENSHOTS_DIR, { recursive: true }).catch(() => {});
+
+function isLocalMachine(machine) {
+  const host = (machine.ssh.host || "").split(".")[0].toLowerCase();
+  return host === LOCAL_HOSTNAME;
+}
+
+function execLocal(script, timeout = 10_000) {
+  return new Promise((resolve) => {
+    execFile("osascript", ["-e", script], { timeout }, (error, stdout) => {
+      resolve({ error, stdout: stdout?.trim() || "" });
+    });
+  });
+}
+
+function execLocalMulti(args, timeout = 10_000) {
+  return new Promise((resolve) => {
+    execFile("osascript", args, { timeout }, (error, stdout) => {
+      resolve({ error, stdout: stdout?.trim() || "" });
+    });
+  });
+}
 
 function sanitizePrompt(text) {
   return text
@@ -165,32 +189,45 @@ export async function sendPromptToMachine(machineId, prompt, target = "terminal"
 
   const safe = sanitizePrompt(prompt);
   const appName = TARGET_APPS[target] || TARGET_APPS.terminal;
-  const osascript = [
+  const osascriptLines = [
     `tell application "${appName}" to activate`,
     `tell application "System Events" to keystroke "${safe}"`,
     'tell application "System Events" to keystroke return'
   ];
-  const remoteCmd = osascript.map((line) => `-e '${line}'`).join(" ");
 
-  function tryExec(useLocal) {
-    const sshArgs = buildSshArgs(machine, useLocal);
-    sshArgs.push(`osascript ${remoteCmd}`);
-    return new Promise((resolve) => {
-      execFile("ssh", sshArgs, { timeout: TIMEOUT_MS }, (error) => {
-        if (error) {
-          resolve({ ok: false, error: error.message });
-        } else {
-          resolve({ ok: true, machine: machineId, name: machine.name });
-        }
-      });
-    });
-  }
-
-  let result = await tryExec(false);
+  let result;
   let usedLocal = false;
-  if (!result.ok && deriveLocalHostname(machine)) {
-    result = await tryExec(true);
+
+  // If this is the local machine, run osascript directly
+  if (isLocalMachine(machine)) {
+    const args = osascriptLines.flatMap((line) => ["-e", line]);
+    const { error } = await execLocalMulti(args);
+    result = error
+      ? { ok: false, error: error.message }
+      : { ok: true, machine: machineId, name: machine.name };
     usedLocal = true;
+  } else {
+    const remoteCmd = osascriptLines.map((line) => `-e '${line}'`).join(" ");
+
+    function tryExec(useLocalNet) {
+      const sshArgs = buildSshArgs(machine, useLocalNet);
+      sshArgs.push(`osascript ${remoteCmd}`);
+      return new Promise((resolve) => {
+        execFile("ssh", sshArgs, { timeout: TIMEOUT_MS }, (error) => {
+          if (error) {
+            resolve({ ok: false, error: error.message });
+          } else {
+            resolve({ ok: true, machine: machineId, name: machine.name });
+          }
+        });
+      });
+    }
+
+    result = await tryExec(false);
+    if (!result.ok && deriveLocalHostname(machine)) {
+      result = await tryExec(true);
+      usedLocal = true;
+    }
   }
 
   if (result.ok) {
@@ -228,6 +265,13 @@ function isReachable(machine) {
 }
 
 function sendKeystroke(machine, useLocal, appName, keyCmd) {
+  // Local machine: run directly
+  if (isLocalMachine(machine)) {
+    return execLocalMulti(["-e", `tell application "${appName}" to activate`, "-e", "delay 0.3", "-e", keyCmd]).then(({ error }) => ({
+      machine: machine.name, id: machine.id, ok: !error, error: error?.message
+    }));
+  }
+
   return new Promise((resolve) => {
     const sshArgs = ["-o", "ConnectTimeout=3", "-o", "BatchMode=yes"];
 
@@ -315,8 +359,21 @@ export function getAllSnapshots() {
 }
 
 async function captureOneSnapshot(machine) {
-  // Try to get frontmost app name + window info as a general snapshot
-  const script = `osascript \
+  const snapshotScript = 'try\ntell application "Terminal" to get contents of front window\non error\ntell application "System Events"\nset frontApp to name of first process whose frontmost is true\ntry\nset winName to name of front window of first process whose frontmost is true\non error\nset winName to "sin ventana"\nend try\nreturn frontApp & " — " & winName\nend tell\nend try';
+
+  function parseOutput(stdout) {
+    const text = stdout?.trim();
+    if (!text) return null;
+    return text.split("\n").slice(-20).join("\n");
+  }
+
+  // Local machine: run directly
+  if (isLocalMachine(machine)) {
+    const { error, stdout } = await execLocal(snapshotScript);
+    return error ? null : parseOutput(stdout);
+  }
+
+  const remoteScript = `osascript \
 -e 'try' \
 -e 'tell application "Terminal" to get contents of front window' \
 -e 'on error' \
@@ -334,20 +391,14 @@ async function captureOneSnapshot(machine) {
   function attempt(useLocal) {
     return new Promise((resolve) => {
       const sshArgs = buildSshArgs(machine, useLocal);
-      sshArgs.push(script);
+      sshArgs.push(remoteScript);
       execFile("ssh", sshArgs, { timeout: 10_000 }, (error, stdout) => {
         if (error) resolve(null);
-        else {
-          const text = stdout.trim();
-          if (!text) return resolve(null);
-          const lines = text.split("\n");
-          resolve(lines.slice(-20).join("\n"));
-        }
+        else resolve(parseOutput(stdout));
       });
     });
   }
 
-  // Try .local first (faster on LAN)
   if (deriveLocalHostname(machine)) {
     const text = await attempt(true);
     if (text) return text;
