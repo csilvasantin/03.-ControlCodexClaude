@@ -279,6 +279,82 @@ export async function approveMachine(machineId, target) {
   return result;
 }
 
+// Periodic snapshots of each machine's screen
+const machineSnapshots = new Map();
+
+export function getMachineSnapshot(machineId) {
+  return machineSnapshots.get(machineId) || null;
+}
+
+export function getAllSnapshots() {
+  const result = {};
+  for (const [id, snap] of machineSnapshots) {
+    result[id] = snap;
+  }
+  return result;
+}
+
+async function captureOneSnapshot(machine) {
+  // Try to get frontmost app name + window info as a general snapshot
+  const script = `osascript \
+-e 'try' \
+-e 'tell application "Terminal" to get contents of front window' \
+-e 'on error' \
+-e 'tell application "System Events"' \
+-e 'set frontApp to name of first process whose frontmost is true' \
+-e 'try' \
+-e 'set winName to name of front window of first process whose frontmost is true' \
+-e 'on error' \
+-e 'set winName to "sin ventana"' \
+-e 'end try' \
+-e 'return frontApp & " — " & winName' \
+-e 'end tell' \
+-e 'end try'`;
+
+  function attempt(useLocal) {
+    return new Promise((resolve) => {
+      const sshArgs = buildSshArgs(machine, useLocal);
+      sshArgs.push(script);
+      execFile("ssh", sshArgs, { timeout: 10_000 }, (error, stdout) => {
+        if (error) resolve(null);
+        else {
+          const text = stdout.trim();
+          if (!text) return resolve(null);
+          const lines = text.split("\n");
+          resolve(lines.slice(-20).join("\n"));
+        }
+      });
+    });
+  }
+
+  let text = await attempt(false);
+  if (!text && deriveLocalHostname(machine)) {
+    text = await attempt(true);
+  }
+  return text;
+}
+
+export async function refreshAllSnapshots() {
+  const data = await readMachines();
+  const sshEnabled = data.machines.filter((m) => m.ssh?.enabled && m.id !== "admira-macmini");
+
+  await Promise.allSettled(
+    sshEnabled.map(async (machine) => {
+      const text = await captureOneSnapshot(machine);
+      if (text) {
+        machineSnapshots.set(machine.id, {
+          text,
+          updatedAt: new Date().toISOString()
+        });
+      }
+    })
+  );
+}
+
+// Start periodic refresh
+refreshAllSnapshots();
+setInterval(refreshAllSnapshots, 60_000);
+
 export function resolveMachineName(machines, input) {
   const q = input.toLowerCase().replace(/[\s-_]+/g, "");
   return machines.find((m) => {

@@ -187,7 +187,7 @@ async function loadMachines() {
     machines = data.machines.filter((m) => m.ssh?.enabled);
     isStaticMode = false;
     populateSelect();
-    renderMachineApproveList();
+    renderMachineApproveList(null);
   } catch {
     try {
       const res = await fetch("./machines.json?v=20260327-1", { cache: "no-store" });
@@ -195,7 +195,7 @@ async function loadMachines() {
       machines = data.machines.filter((m) => m.ssh?.enabled);
       isStaticMode = true;
       populateSelect();
-      renderMachineApproveList();
+      renderMachineApproveList(null);
       sendBtn.textContent = "Solo lectura";
       sendBtn.disabled = true;
     } catch {
@@ -222,23 +222,36 @@ sendBtn.addEventListener("click", () => {
 // Per-machine approve
 const machineApproveList = document.querySelector("#machineApproveList");
 
-function renderMachineApproveList() {
+function formatTimeShort(iso) {
+  try { return new Date(iso).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }); }
+  catch { return ""; }
+}
+
+function renderMachineApproveList(snapshots) {
   const filtered = machines.filter((m) => m.id !== "admira-macmini");
   if (!filtered.length) {
     machineApproveList.innerHTML = '<p class="tw-empty">Sin equipos disponibles.</p>';
     return;
   }
 
-  machineApproveList.innerHTML = filtered.map((m) => `
+  machineApproveList.innerHTML = filtered.map((m) => {
+    const snap = snapshots?.[m.id];
+    const snapshotHtml = snap
+      ? `<div class="tw-machine-snapshot"><pre>${snap.text.replace(/</g, "&lt;")}</pre><div class="tw-machine-snapshot-time">${formatTimeShort(snap.updatedAt)}</div></div>`
+      : `<div class="tw-machine-snapshot-empty">Sin captura</div>`;
+    return `
     <div class="tw-machine-row" data-id="${m.id}">
-      <div>
-        <span class="tw-machine-name">${m.name}</span><br>
-        <span class="tw-machine-member">${m.member}</span>
+      <div class="tw-machine-info">
+        ${snapshotHtml}
+        <div>
+          <span class="tw-machine-name">${m.name}</span><br>
+          <span class="tw-machine-member">${m.member}</span>
+        </div>
       </div>
       <button class="tw-approve-sm claude" data-machine="${m.id}" data-target="claude">Claude</button>
       <button class="tw-approve-sm codex" data-machine="${m.id}" data-target="codex">Codex</button>
-    </div>
-  `).join("");
+    </div>`;
+  }).join("");
 
   machineApproveList.querySelectorAll(".tw-approve-sm").forEach((btn) => {
     btn.addEventListener("click", async () => {
@@ -298,6 +311,20 @@ async function approveAll(target, btn, resultEl) {
 approveClaudeBtn.addEventListener("click", () => approveAll("claude", approveClaudeBtn, approveClaudeResult));
 approveCodexBtn.addEventListener("click", () => approveAll("codex", approveCodexBtn, approveCodexResult));
 
+async function loadSnapshots() {
+  try {
+    const res = await fetch(apiUrl("/api/teamwork/snapshots"), { cache: "no-store" });
+    const data = await res.json();
+    if (data.ok) {
+      renderMachineApproveList(data.snapshots);
+    }
+  } catch {
+    // silently fail
+  }
+}
+
 loadMachines();
 loadHistory();
+setTimeout(loadSnapshots, 2000);
 setInterval(loadHistory, 10_000);
+setInterval(loadSnapshots, 60_000);
