@@ -3,9 +3,11 @@ import { readFile } from "node:fs/promises";
 import { extname, resolve } from "node:path";
 
 import { readMachines, updateMachineStatus, updateMachineSync } from "./store.js";
+import { sendPromptToMachine, resolveMachineName } from "./ssh-exec.js";
+import { addEntry, getHistory } from "./teamwork-store.js";
 
 const PORT = 3030;
-const HOST = "127.0.0.1";
+const HOST = "0.0.0.0";
 const PUBLIC_DIR = resolve(import.meta.dirname, "../public");
 
 const MIME_TYPES = {
@@ -101,6 +103,42 @@ const server = createServer(async (request, response) => {
     }
 
     sendJson(response, 200, { ok: true, machine: updated });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/teamwork/send") {
+    const rawBody = await readRequestBody(request);
+    const parsed = rawBody ? JSON.parse(rawBody) : {};
+    let { machineId, prompt } = parsed;
+
+    if (!machineId || !prompt) {
+      sendJson(response, 400, { error: "machineId y prompt son obligatorios" });
+      return;
+    }
+
+    prompt = prompt.trim();
+    if (!prompt) {
+      sendJson(response, 400, { error: "El prompt no puede estar vacío" });
+      return;
+    }
+
+    const data = await readMachines();
+    const machine = data.machines.find((m) => m.id === machineId);
+    if (!machine) {
+      const resolved = resolveMachineName(data.machines, machineId);
+      if (resolved) {
+        machineId = resolved.id;
+      }
+    }
+
+    const result = await sendPromptToMachine(machineId, prompt);
+    const entry = addEntry(machineId, result.name || machineId, prompt, result.ok, result.error);
+    sendJson(response, result.ok ? 200 : 502, { ...result, entry });
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/teamwork/history") {
+    sendJson(response, 200, { entries: getHistory() });
     return;
   }
 

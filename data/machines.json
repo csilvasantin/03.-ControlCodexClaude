@@ -81,10 +81,10 @@
       "note": "Tailscale: macbookair16.tail48b61c.ts.net",
       "ssh": {
         "enabled": true,
-        "user": "Carlos",
+        "user": "csilvasantin",
         "host": "macbookair16.tail48b61c.ts.net",
         "ip_tailscale": "100.99.176.126",
-        "connect_tailscale": "ssh Carlos@100.99.176.126"
+        "connect_tailscale": "ssh csilvasantin@100.99.176.126"
       }
     },
     {
