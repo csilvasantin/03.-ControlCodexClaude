@@ -255,9 +255,10 @@ export async function approveAll(target) {
   const appName = TARGET_APPS[target] || TARGET_APPS.claude;
   const keyCmd = 'tell application "System Events" to key code 36 using control down';
 
-  // Only send to reachable machines (have a recent snapshot)
-  const reachable = data.machines.filter((m) => m.ssh?.enabled && m.id !== "admira-macmini" && isReachable(m));
-  const unreachable = data.machines.filter((m) => m.ssh?.enabled && m.id !== "admira-macmini" && !isReachable(m));
+  // Send to all reachable machines including this one (macmini)
+  const sshEnabled = data.machines.filter((m) => m.ssh?.enabled);
+  const reachable = sshEnabled.filter((m) => isReachable(m) || m.id === "admira-macmini");
+  const unreachable = sshEnabled.filter((m) => !isReachable(m) && m.id !== "admira-macmini");
 
   const results = await Promise.allSettled(
     reachable.map(async (machine) => {

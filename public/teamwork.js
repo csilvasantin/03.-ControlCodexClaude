@@ -253,34 +253,8 @@ function renderMachineApproveList(snapshots) {
       </select>
       <button class="tw-machine-send" data-machine-send="${m.id}">Enviar</button>
       <div class="tw-machine-monitor small" data-monitor="${m.id}">${monitorContent}</div>
-      <button class="tw-approve-sm claude" data-machine="${m.id}" data-target="claude">Claude</button>
-      <button class="tw-approve-sm codex" data-machine="${m.id}" data-target="codex">Codex</button>
     </div>`;
   }).join("");
-
-  machineApproveList.querySelectorAll(".tw-approve-sm[data-machine]").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const machineId = btn.dataset.machine;
-      const target = btn.dataset.target;
-      const origText = btn.textContent;
-      btn.disabled = true;
-      btn.textContent = "...";
-
-      try {
-        const res = await fetch(apiUrl("/api/teamwork/approve-machine"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ machineId, target })
-        });
-        const data = await res.json();
-        btn.textContent = data.ok ? "OK" : "Error";
-        setTimeout(() => { btn.textContent = origText; btn.disabled = false; }, 2000);
-      } catch {
-        btn.textContent = "Error";
-        setTimeout(() => { btn.textContent = origText; btn.disabled = false; }, 2000);
-      }
-    });
-  });
 
   // Per-machine send prompt
   machineApproveList.querySelectorAll(".tw-machine-send").forEach((btn) => {
