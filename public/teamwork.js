@@ -234,7 +234,13 @@ function renderMachineApproveList(snapshots) {
     return;
   }
 
-  machineApproveList.innerHTML = filtered.map((m) => {
+  const sorted = [...filtered].sort((a, b) => {
+    const aOnline = snapshots?.[a.id] ? 1 : 0;
+    const bOnline = snapshots?.[b.id] ? 1 : 0;
+    return bOnline - aOnline;
+  });
+
+  machineApproveList.innerHTML = sorted.map((m) => {
     const snap = snapshots?.[m.id];
     const monitorContent = snap
       ? `<pre>${snap.text.replace(/</g, "&lt;")}</pre><span class="tw-machine-monitor-time">${formatTimeShort(snap.updatedAt)}</span>`
