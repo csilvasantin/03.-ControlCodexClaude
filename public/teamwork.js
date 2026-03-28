@@ -391,12 +391,47 @@ sendAllBtn.addEventListener("click", () => {
 approveClaudeBtn.addEventListener("click", () => approveAll("claude", approveClaudeBtn, approveClaudeResult));
 approveCodexBtn.addEventListener("click", () => approveAll("codex", approveCodexBtn, approveCodexResult));
 
+function updateSnapshotsInPlace(snapshots) {
+  for (const m of machines) {
+    const row = machineApproveList.querySelector(`.tw-machine-row[data-id="${m.id}"]`);
+    if (!row) return renderMachineApproveList(snapshots); // first render
+    const mon = row.querySelector(".tw-machine-monitor");
+    const snap = snapshots?.[m.id];
+    if (snap && snap.type === "image") {
+      const imgSrc = snap.image.startsWith("/") ? apiUrl(snap.image) : snap.image;
+      const cacheBust = imgSrc.includes("?") ? `&t=${Date.now()}` : `?t=${Date.now()}`;
+      const img = mon.querySelector("img");
+      if (img) {
+        img.src = `${imgSrc}${cacheBust}`;
+      } else {
+        mon.innerHTML = `<img src="${imgSrc}${cacheBust}" alt="${m.name}" style="width:100%;height:100%;object-fit:cover;border-radius:6px;"><span class="tw-machine-monitor-time">${formatTimeShort(snap.updatedAt)}</span>`;
+      }
+      const timeEl = mon.querySelector(".tw-machine-monitor-time");
+      if (timeEl) timeEl.textContent = formatTimeShort(snap.updatedAt);
+    } else if (snap && snap.text) {
+      mon.innerHTML = `<pre>${snap.text.replace(/</g, "&lt;")}</pre><span class="tw-machine-monitor-time">${formatTimeShort(snap.updatedAt)}</span>`;
+    }
+    // Update app badges
+    const statusEl = row.querySelector(".tw-app-status");
+    if (statusEl) {
+      statusEl.innerHTML =
+        (snap?.claudeState ? `<span class="tw-app-tag claude" title="Claude: ${snap.claudeState}">C</span>` : "") +
+        (snap?.codexState ? `<span class="tw-app-tag codex" title="Codex: ${snap.codexState}">X</span>` : "");
+    }
+  }
+}
+
 async function loadSnapshots() {
   try {
     const res = await fetch(apiUrl("/api/teamwork/snapshots"), { cache: "no-store" });
     const data = await res.json();
     if (data.ok) {
-      renderMachineApproveList(data.snapshots);
+      const hasRows = machineApproveList.querySelector(".tw-machine-row");
+      if (hasRows) {
+        updateSnapshotsInPlace(data.snapshots);
+      } else {
+        renderMachineApproveList(data.snapshots);
+      }
     }
   } catch {
     // silently fail
