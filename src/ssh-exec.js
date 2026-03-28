@@ -605,9 +605,14 @@ export function resolveMachineName(machines, input) {
 
 // ─── WATCHDOG: Auto-approval system ───────────────────────────────────
 
-const WATCHDOG_INTERVAL_MS = 30_000;
+const WATCHDOG_INTERVAL_MS = 15_000;
 
-// Claude Desktop tool-use buttons start with these verbs when approval is pending
+// Exact button names that mean "approve this tool use" in Claude Desktop
+const CLAUDE_APPROVAL_EXACT = [
+  "Allow", "Yes", "OK", "Run", "Execute", "Confirm", "Accept",
+  "Permitir", "Aceptar", "Sí", "Continue", "Proceed"
+];
+// Claude Desktop tool-use buttons that start with action verbs
 const CLAUDE_TOOL_BUTTON_VERBS = [
   "Ejecutó", "ejecutó", "Run", "Check", "Install", "Clone", "List", "Show",
   "Read", "Leyó", "leyó", "Write", "Create", "Delete", "Search", "Find",
@@ -616,7 +621,13 @@ const CLAUDE_TOOL_BUTTON_VERBS = [
 // UI-only buttons to IGNORE (not tool approvals)
 const CLAUDE_IGNORE_BUTTONS = [
   "Aceptar ediciones", "Opus", "Claude", "Vista previa", "~/",
-  "Sonnet", "Haiku", "contexto"
+  "Sonnet", "Haiku", "contexto", "Close", "Minimize", "Zoom",
+  "Cancel", "Cancelar", "Done", "Listo", "Cerrar"
+];
+// Codex CLI approval patterns (numbered options in terminal)
+const CODEX_APPROVAL_PATTERNS = [
+  /approve/i, /allow/i, /permitir/i, /deny/i, /negar/i, /y\/n/i, /\[y\]/i,
+  /proceed/i, /continuar/i
 ];
 
 const watchdogState = {
@@ -726,25 +737,44 @@ function parseAppsState(raw) {
   return result;
 }
 
-// Scan Claude Desktop for tool-approval buttons via accessibility (all windows = multi-monitor)
+// Scan Claude Desktop for tool-approval buttons — direct children only (fast, no entire contents)
 async function detectClaudeApprovalButtons(machine) {
   const script = `tell application "System Events"
+  if not (exists process "Claude") then return ""
   tell process "Claude"
     set r to ""
     try
       repeat with w in every window
         try
-          set allElems to entire contents of w
-          repeat with e in allElems
+          repeat with b in (every button of w)
             try
-              set eName to name of e
-              set eRole to role of e
-              if eName is not missing value and eName is not "" then
-                if eRole contains "Button" then
-                  set r to r & eName & "|"
-                end if
-              end if
+              set n to name of b
+              if n is not missing value and n is not "" then set r to r & n & "|"
             end try
+          end repeat
+          repeat with g in (every group of w)
+            repeat with b in (every button of g)
+              try
+                set n to name of b
+                if n is not missing value and n is not "" then set r to r & n & "|"
+              end try
+            end repeat
+          end repeat
+          repeat with s in (every sheet of w)
+            repeat with b in (every button of s)
+              try
+                set n to name of b
+                if n is not missing value and n is not "" then set r to r & n & "|"
+              end try
+            end repeat
+            repeat with g in (every group of s)
+              repeat with b in (every button of g)
+                try
+                  set n to name of b
+                  if n is not missing value and n is not "" then set r to r & n & "|"
+                end try
+              end repeat
+            end repeat
           end repeat
         end try
       end repeat
@@ -779,14 +809,76 @@ end tell`;
 // Check if any button text indicates a pending tool approval
 function hasClaudeToolApproval(buttonsStr) {
   if (!buttonsStr) return false;
-  const buttons = buttonsStr.split("|").filter(Boolean);
+  const buttons = buttonsStr.split("|").map((b) => b.trim()).filter(Boolean);
   for (const btn of buttons) {
-    // Skip known UI-only buttons
-    if (CLAUDE_IGNORE_BUTTONS.some((ign) => btn.includes(ign))) continue;
-    // Check if button matches tool-use verbs
+    if (CLAUDE_IGNORE_BUTTONS.some((ign) => btn.toLowerCase().includes(ign.toLowerCase()))) continue;
+    // Exact match for known approval buttons (e.g. "Allow", "Yes")
+    if (CLAUDE_APPROVAL_EXACT.some((a) => btn.toLowerCase() === a.toLowerCase())) return true;
+    // Verb match for tool-description buttons
     if (CLAUDE_TOOL_BUTTON_VERBS.some((verb) => btn.includes(verb))) return true;
   }
   return false;
+}
+
+// Read text content of the Codex app to detect numbered approval prompts
+async function detectCodexApproval(machine) {
+  const script = `tell application "System Events"
+  if not (exists process "Codex") then return ""
+  tell process "Codex"
+    set r to ""
+    try
+      set fw to front window
+      repeat with ta in (every text area of fw)
+        try
+          set v to value of ta
+          if v is not missing value then set r to r & v & "\n"
+        end try
+      end repeat
+      repeat with sa in (every scroll area of fw)
+        try
+          repeat with ta in (every text area of sa)
+            try
+              set v to value of ta
+              if v is not missing value then set r to r & v & "\n"
+            end try
+          end repeat
+        end try
+      end repeat
+    end try
+    return r
+  end tell
+end tell`;
+
+  if (isLocalMachine(machine)) {
+    const { error, stdout } = await execLocal(script, 8000);
+    return error ? "" : stdout?.trim() || "";
+  }
+
+  const lines = script.split("\n").map((l) => `-e '${l.trim()}'`).join(" ");
+  function attempt(useLocal) {
+    return new Promise((resolve_) => {
+      const sshArgs = buildSshArgs(machine, useLocal);
+      sshArgs.push(`osascript ${lines}`);
+      execFile("ssh", sshArgs, { timeout: 10_000 }, (error, stdout) => {
+        resolve_(error ? "" : stdout?.trim() || "");
+      });
+    });
+  }
+
+  if (deriveLocalHostname(machine) && !isLocalMachine(machine)) {
+    const r = await attempt(true);
+    if (r) return r;
+  }
+  return attempt(false);
+}
+
+function hasCodexApproval(text) {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  // Codex CLI shows numbered options: "1)" + approval keywords
+  const hasNumbers = /\b[123][).]\s/m.test(text);
+  const hasApproval = CODEX_APPROVAL_PATTERNS.some((re) => re.test(lower));
+  return hasNumbers && hasApproval;
 }
 
 // Detect approval prompts by reading terminal content on a remote/local machine
@@ -882,15 +974,23 @@ async function watchdogCheck() {
         }
       }
 
-      // --- CODEX DESKTOP DETECTION ---
-      if (apps.codex && apps.codex !== "no-window" && apps.codex !== "OFF") {
+      // --- CODEX DETECTION ---
+      if (apps.codex && apps.codex !== "OFF") {
+        // 1. Check window title (fast, catches obvious cases)
         const codexTitle = (apps.codex || "").toLowerCase();
-        const codexNeedsApproval = ["approve", "aprobar", "confirm", "confirmar",
+        const titleHasApproval = ["approve", "aprobar", "confirm", "confirmar",
           "accept", "aceptar", "permission", "permiso", "waiting", "esperando",
           "y/n", "allow", "permitir"].some((kw) => codexTitle.includes(kw));
-        if (codexNeedsApproval) {
+        if (titleHasApproval) {
           await autoApprove(machine, "codex", mState);
           codexApproved = true;
+        } else {
+          // 2. Read Codex app text content for numbered approval options
+          const codexText = await detectCodexApproval(machine);
+          if (hasCodexApproval(codexText)) {
+            await autoApprove(machine, "codex", mState);
+            codexApproved = true;
+          }
         }
       }
 
@@ -912,7 +1012,16 @@ async function watchdogCheck() {
   );
 }
 
+const lastApprovalTimes = new Map(); // `${machineId}:${target}` → timestamp
+const APPROVAL_COOLDOWN_MS = 12_000; // don't re-approve same target within 12s
+
 async function autoApprove(machine, target, mState) {
+  // Cooldown: avoid double-approving while dialog is still clearing
+  const cooldownKey = `${machine.id}:${target}`;
+  const lastTime = lastApprovalTimes.get(cooldownKey) || 0;
+  if (Date.now() - lastTime < APPROVAL_COOLDOWN_MS) return;
+  lastApprovalTimes.set(cooldownKey, Date.now());
+
   // terminal_claude uses Terminal app with Ctrl+Enter
   const effectiveTarget = target === "terminal_claude" ? "terminal" : target;
   const appName = TARGET_APPS[effectiveTarget] || TARGET_APPS.claude;
