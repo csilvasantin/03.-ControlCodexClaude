@@ -604,6 +604,33 @@
         background: linear-gradient(135deg, rgba(0,255,70,0.08) 0%, rgba(0,0,0,0.4) 100%);
         pointer-events: none;
       }
+      .pill-glow {
+        position: absolute;
+        border-radius: 50%;
+        pointer-events: none;
+        z-index: 2;
+        mix-blend-mode: screen;
+      }
+      .pill-glow-red {
+        width: 90px; height: 90px;
+        left: 8%; top: 38%;
+        background: radial-gradient(circle, rgba(214,48,49,0.95) 0%, rgba(214,48,49,0.3) 45%, transparent 70%);
+        animation: pillPulseRed 2.2s ease-in-out infinite alternate;
+      }
+      .pill-glow-blue {
+        width: 90px; height: 90px;
+        right: 8%; top: 38%;
+        background: radial-gradient(circle, rgba(9,132,227,0.95) 0%, rgba(9,132,227,0.3) 45%, transparent 70%);
+        animation: pillPulseBlue 2.2s ease-in-out infinite alternate-reverse;
+      }
+      @keyframes pillPulseRed {
+        from { opacity: 0.35; transform: scale(0.85); }
+        to   { opacity: 1;    transform: scale(1.2);  }
+      }
+      @keyframes pillPulseBlue {
+        from { opacity: 0.35; transform: scale(0.85); }
+        to   { opacity: 1;    transform: scale(1.2);  }
+      }
       @media (max-width: 600px) {
         .hero-pills { display: none; }
       }
@@ -615,11 +642,13 @@
       <header class="hero">
         <div class="hero-inner">
           <div class="hero-text">
-            <p class="eyebrow">Control remoto — v2.1.8</p>
+            <p class="eyebrow">Control remoto — v2.1.9</p>
             <h1>AdmiraNext Control</h1>
             <p class="subtitle">Envía prompts y aprueba acciones en Claude y Codex de todos los equipos de Admira Next.</p>
           </div>
           <div class="hero-pills">
+            <div class="pill-glow pill-glow-red"></div>
+            <div class="pill-glow pill-glow-blue"></div>
             <img src="./matrix-pills.jpg" alt="Red pill or blue pill?" draggable="false">
             <nav class="tw-nav" style="margin-top:10px;text-align:center;"><a href="./index.html">Volver al dashboard</a></nav>
           </div>
