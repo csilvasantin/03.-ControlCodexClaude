@@ -460,5 +460,5 @@ loadHistory();
 setTimeout(loadSnapshots, 2000);
 setTimeout(loadWatchdogStats, 3000);
 setInterval(loadHistory, 10_000);
-setInterval(loadSnapshots, 60_000);
+setInterval(loadSnapshots, 30_000);
 setInterval(loadWatchdogStats, 15_000);

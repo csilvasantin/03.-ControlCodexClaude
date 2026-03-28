@@ -224,7 +224,7 @@ const server = createServer(async (request, response) => {
     const screenshotPath = resolve(import.meta.dirname, "../data/screenshots", filename);
     try {
       const file = await readFile(screenshotPath);
-      response.writeHead(200, { "Content-Type": "image/jpeg", ...CORS_HEADERS });
+      response.writeHead(200, { "Content-Type": "image/jpeg", "Cache-Control": "no-cache, no-store, must-revalidate", ...CORS_HEADERS });
       response.end(file);
     } catch {
       response.writeHead(404, { "Content-Type": "text/plain" });

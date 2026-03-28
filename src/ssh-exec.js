@@ -560,7 +560,7 @@ export async function refreshAllSnapshots() {
 
 // Start periodic refresh
 refreshAllSnapshots();
-setInterval(refreshAllSnapshots, 60_000);
+setInterval(refreshAllSnapshots, 30_000);
 
 export function resolveMachineName(machines, input) {
   const q = input.toLowerCase().replace(/[\s-_]+/g, "");
