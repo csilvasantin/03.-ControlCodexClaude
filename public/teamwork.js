@@ -202,7 +202,14 @@ function renderMachineApproveList(snapshots) {
   machineApproveList.innerHTML = sorted.map((m) => {
     const snap = snapshots?.[m.id];
     let monitorContent;
-    if (snap && snap.type === "image") {
+    const multiLabels = ["Studio", "Claude", "Codex"];
+    if (snap && snap.type === "images") {
+      const t = Date.now();
+      monitorContent = `<div class="tw-multi-monitor">${snap.images.map((imgPath, i) => {
+        const src = (imgPath.startsWith("/") ? apiUrl(imgPath) : imgPath) + `?t=${t}`;
+        return `<div class="tw-multi-screen"><img src="${src}" alt="${multiLabels[i]}"><span class="tw-screen-label">${multiLabels[i]}</span></div>`;
+      }).join("")}</div><span class="tw-machine-monitor-time">${formatTimeShort(snap.updatedAt)}</span>`;
+    } else if (snap && snap.type === "image") {
       const imgSrc = snap.image.startsWith("/") ? apiUrl(snap.image) : snap.image;
       const cacheBust = imgSrc.includes("?") ? `&t=${Date.now()}` : `?t=${Date.now()}`;
       monitorContent = `<img src="${imgSrc}${cacheBust}" alt="${m.name}" style="width:100%;height:100%;object-fit:cover;border-radius:6px;"><span class="tw-machine-monitor-time">${formatTimeShort(snap.updatedAt)}</span>`;
@@ -397,13 +404,31 @@ function updateSnapshotsInPlace(snapshots) {
     if (!row) return renderMachineApproveList(snapshots); // first render
     const mon = row.querySelector(".tw-machine-monitor");
     const snap = snapshots?.[m.id];
-    if (snap && snap.type === "image") {
+    const multiLabels = ["Studio", "Claude", "Codex"];
+    if (snap && snap.type === "images") {
+      const t = Date.now();
+      const imgs = mon.querySelectorAll(".tw-multi-screen img");
+      if (imgs.length === snap.images.length) {
+        snap.images.forEach((imgPath, i) => {
+          const src = (imgPath.startsWith("/") ? apiUrl(imgPath) : imgPath) + `?t=${t}`;
+          const preload = new Image();
+          preload.onload = () => { imgs[i].src = src; };
+          preload.src = src;
+        });
+        const timeEl = mon.querySelector(".tw-machine-monitor-time");
+        if (timeEl) timeEl.textContent = formatTimeShort(snap.updatedAt);
+      } else {
+        mon.innerHTML = `<div class="tw-multi-monitor">${snap.images.map((imgPath, i) => {
+          const src = (imgPath.startsWith("/") ? apiUrl(imgPath) : imgPath) + `?t=${t}`;
+          return `<div class="tw-multi-screen"><img src="${src}" alt="${multiLabels[i]}"><span class="tw-screen-label">${multiLabels[i]}</span></div>`;
+        }).join("")}</div><span class="tw-machine-monitor-time">${formatTimeShort(snap.updatedAt)}</span>`;
+      }
+    } else if (snap && snap.type === "image") {
       const imgSrc = snap.image.startsWith("/") ? apiUrl(snap.image) : snap.image;
       const cacheBust = imgSrc.includes("?") ? `&t=${Date.now()}` : `?t=${Date.now()}`;
       const newSrc = `${imgSrc}${cacheBust}`;
       const img = mon.querySelector("img");
       if (img) {
-        // Precargar antes de swappear para evitar flickering
         const preload = new Image();
         preload.onload = () => {
           img.src = newSrc;

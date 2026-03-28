@@ -394,6 +394,36 @@
         color: #5f7469;
       }
       .tw-machine-monitor.small .tw-machine-monitor-time { font-size: 5px; }
+      .tw-multi-monitor {
+        display: flex;
+        height: 100%;
+        gap: 1px;
+        background: #000;
+      }
+      .tw-multi-screen {
+        flex: 1;
+        overflow: hidden;
+        position: relative;
+      }
+      .tw-multi-screen img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+      .tw-screen-label {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        text-align: center;
+        font-size: 4px;
+        color: rgba(255,255,255,0.8);
+        background: rgba(0,0,0,0.45);
+        padding: 1px 0;
+        font-family: "SF Mono", monospace;
+        letter-spacing: 0.3px;
+      }
       .tw-machine-row { position: relative; }
 
       .tw-machine-input {
@@ -576,7 +606,7 @@
       <header class="hero">
         <div class="hero-inner">
           <div class="hero-text">
-            <p class="eyebrow">Control remoto — v2.1.0</p>
+            <p class="eyebrow">Control remoto — v2.1.1</p>
             <h1>AdmiraNext Control</h1>
             <p class="subtitle">Envía prompts y aprueba acciones en Claude y Codex de todos los equipos de Admira Next.</p>
             <nav class="tw-nav"><a href="./index.html">Volver al dashboard</a></nav>
@@ -646,7 +676,7 @@
       AdmiraNext Control v1.9.8 — 2026-03-28
     </footer>
 
-    <script src="./teamwork.js?v=20260328-15" type="module"></script>
+    <script src="./teamwork.js?v=20260328-16" type="module"></script>
     <script>
       (function() {
         const c = document.getElementById("matrixCanvas");

@@ -504,19 +504,47 @@ async function captureTextFallback(machine) {
   return attempt(false);
 }
 
+// Capture all 3 displays of local Mac Mini in parallel
+async function captureLocalAllDisplays(machine) {
+  return Promise.all([1, 2, 3].map((d) => new Promise((resolve_) => {
+    const tmpPath = join(tmpdir(), `tw_snap_${machine.id}_d${d}_${Date.now()}.jpg`);
+    execFile("launchctl", ["asuser", String(process.getuid()), "screencapture", "-D", String(d), "-x", "-t", "jpg", tmpPath],
+      { timeout: 10_000 }, (err) => {
+        if (err) return resolve_(null);
+        execFile("sips", ["-Z", "960", tmpPath, "--out", tmpPath], { timeout: 5_000 }, async () => {
+          try { resolve_(await readFile(tmpPath)); }
+          catch { resolve_(null); }
+          finally { unlink(tmpPath).catch(() => {}); }
+        });
+      });
+  })));
+}
+
 async function captureOneSnapshot(machine) {
-  // Try real desktop screenshot first — returns Buffer or null
+  if (isLocalMachine(machine)) {
+    // Capture all 3 displays
+    const bufs = await captureLocalAllDisplays(machine);
+    const keys = [`${machine.id}-d1`, `${machine.id}-d2`, `${machine.id}-d3`];
+    const images = [];
+    for (let i = 0; i < 3; i++) {
+      if (bufs[i]) {
+        imageBuffers.set(keys[i], bufs[i]);
+        images.push(`/api/screenshots/${keys[i]}`);
+      }
+    }
+    if (images.length > 0) return { type: "images", images };
+    const text = await captureTextFallback(machine);
+    return text ? { type: "text", text } : null;
+  }
+
+  // Remote: single display
   const buf = await captureDesktopScreenshot(machine);
   if (buf) {
     imageBuffers.set(machine.id, buf);
     return { type: "image", image: `/api/screenshots/${machine.id}` };
   }
-  // Fallback to text
   const text = await captureTextFallback(machine);
-  if (text) {
-    return { type: "text", text };
-  }
-  return null;
+  return text ? { type: "text", text } : null;
 }
 
 export async function refreshAllSnapshots() {
