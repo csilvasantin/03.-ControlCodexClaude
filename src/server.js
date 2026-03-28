@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { extname, resolve } from "node:path";
 
 import { readMachines, updateMachineStatus, updateMachineSync } from "./store.js";
-import { sendPromptToMachine, resolveMachineName, getCapture, approveAll, approveMachine, getAllSnapshots, getReachableMachines } from "./ssh-exec.js";
+import { sendPromptToMachine, resolveMachineName, getCapture, approveAll, approveMachine, getAllSnapshots, getReachableMachines, getWatchdogState, setWatchdogEnabled, setMachineWatchdog } from "./ssh-exec.js";
 import { addEntry, getHistory } from "./teamwork-store.js";
 
 const PORT = 3030;
@@ -230,6 +230,32 @@ const server = createServer(async (request, response) => {
       response.writeHead(404, { "Content-Type": "text/plain" });
       response.end("Not found");
     }
+    return;
+  }
+
+  // Watchdog endpoints
+  if (request.method === "GET" && url.pathname === "/api/teamwork/watchdog") {
+    sendJson(response, 200, { ok: true, ...getWatchdogState() });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/teamwork/watchdog") {
+    const rawBody = await readRequestBody(request);
+    const parsed = rawBody ? JSON.parse(rawBody) : {};
+    setWatchdogEnabled(!!parsed.enabled);
+    sendJson(response, 200, { ok: true, enabled: !!parsed.enabled });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/teamwork/watchdog/machine") {
+    const rawBody = await readRequestBody(request);
+    const parsed = rawBody ? JSON.parse(rawBody) : {};
+    if (!parsed.machineId) {
+      sendJson(response, 400, { error: "machineId obligatorio" });
+      return;
+    }
+    setMachineWatchdog(parsed.machineId, !!parsed.enabled);
+    sendJson(response, 200, { ok: true, machineId: parsed.machineId, enabled: !!parsed.enabled });
     return;
   }
 

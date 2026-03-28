@@ -226,6 +226,7 @@ function renderMachineApproveList(snapshots) {
       </select>
       <button class="tw-machine-send" data-machine-send="${m.id}">Enviar</button>
       <button class="tw-machine-approve" data-machine-approve="${m.id}">Aprobar</button>
+      <span class="tw-auto-badge" data-watchdog-machine="${m.id}">🤖 0</span>
     </div>`;
   }).join("");
 
@@ -398,8 +399,62 @@ async function loadSnapshots() {
   }
 }
 
+// ─── Watchdog toggle & stats ───────────────────────────────────────
+
+const watchdogToggle = document.querySelector("#watchdogToggle");
+const watchdogPulse = document.querySelector("#watchdogPulse");
+let watchdogStats = {};
+
+watchdogToggle.addEventListener("change", async () => {
+  const enabled = watchdogToggle.checked;
+  watchdogPulse.classList.toggle("off", !enabled);
+  try {
+    await fetch(apiUrl("/api/teamwork/watchdog"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled })
+    });
+  } catch { /* ignore */ }
+});
+
+async function loadWatchdogStats() {
+  try {
+    const res = await fetch(apiUrl("/api/teamwork/watchdog"), { cache: "no-store" });
+    const data = await res.json();
+    if (data.ok) {
+      watchdogToggle.checked = data.enabled;
+      watchdogPulse.classList.toggle("off", !data.enabled);
+      watchdogStats = data.perMachine || {};
+      updateWatchdogBadges();
+    }
+  } catch { /* ignore */ }
+}
+
+function updateWatchdogBadges() {
+  document.querySelectorAll(".tw-auto-badge").forEach((badge) => {
+    const machineId = badge.dataset.watchdogMachine;
+    const stats = watchdogStats[machineId];
+    if (stats) {
+      const total = (stats.claudeCount || 0) + (stats.codexCount || 0);
+      if (total > 0) {
+        badge.textContent = `🤖 ${total}`;
+        badge.title = `Claude: ${stats.claudeCount || 0} | Codex: ${stats.codexCount || 0}`;
+        badge.classList.add("has-approvals");
+      } else {
+        badge.textContent = "🤖 0";
+        badge.title = "Sin auto-aprobaciones";
+        badge.classList.remove("has-approvals");
+      }
+    }
+  });
+}
+
+// ─── Init ──────────────────────────────────────────────────────────
+
 loadMachines();
 loadHistory();
 setTimeout(loadSnapshots, 2000);
+setTimeout(loadWatchdogStats, 3000);
 setInterval(loadHistory, 10_000);
 setInterval(loadSnapshots, 60_000);
+setInterval(loadWatchdogStats, 15_000);

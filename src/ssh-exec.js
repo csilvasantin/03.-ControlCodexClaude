@@ -273,31 +273,13 @@ delay 0.3
 tell application "System Events" to key code 36 using control down`;
   }
   if (appName === "Codex") {
-    // Codex: Try clicking the Approve/Aprobar button via accessibility, fallback to Ctrl+Y
+    // Codex: send "2" + Enter to approve
     return `tell application "Codex" to activate
-delay 0.5
+delay 0.3
 tell application "System Events"
-  tell process "Codex"
-    set found to false
-    -- Search for approve-like buttons in the UI
-    try
-      set allBtns to every button of front window
-      repeat with b in allBtns
-        try
-          set btnName to name of b
-          if btnName contains "Approve" or btnName contains "Aprobar" or btnName contains "Accept" or btnName contains "Aceptar" or btnName contains "Run" or btnName contains "Confirm" or btnName contains "Yes" then
-            click b
-            set found to true
-            exit repeat
-          end if
-        end try
-      end repeat
-    end try
-    -- If no button found, try Ctrl+Enter as fallback
-    if not found then
-      key code 36 using control down
-    end if
-  end tell
+  keystroke "2"
+  delay 0.2
+  key code 36
 end tell`;
   }
   // Terminal fallback
@@ -577,4 +559,199 @@ export function resolveMachineName(machines, input) {
     const name = m.name.toLowerCase().replace(/[\s-_]+/g, "");
     return id.includes(q) || name.includes(q) || id.replace("admira", "").includes(q);
   }) || null;
+}
+
+// ─── WATCHDOG: Auto-approval system ───────────────────────────────────
+
+const WATCHDOG_INTERVAL_MS = 30_000;
+
+// Keywords that indicate an app is waiting for approval
+const CLAUDE_WAITING_KEYWORDS = [
+  "wants to", "allow", "approve", "permission", "waiting",
+  "y/n", "Y/n", "Accept", "Deny", "Tool Use", "Run command"
+];
+const CODEX_WAITING_KEYWORDS = [
+  "approve", "aprobar", "confirm", "accept", "waiting",
+  "run", "allow", "permission", "y/n", "Y/n"
+];
+
+const watchdogState = {
+  enabled: false,
+  perMachine: {},    // { [machineId]: { enabled, claudeCount, codexCount, lastApproval, lastTarget } }
+  intervalId: null,
+  log: []            // last 50 auto-approvals for debugging
+};
+
+function initMachineWatchdog(machineId) {
+  if (!watchdogState.perMachine[machineId]) {
+    watchdogState.perMachine[machineId] = {
+      enabled: true,
+      claudeCount: 0,
+      codexCount: 0,
+      lastApproval: null,
+      lastTarget: null
+    };
+  }
+}
+
+// Detect if text snapshot indicates waiting for approval
+function detectWaitingState(text) {
+  if (!text) return null;
+  const lower = text.toLowerCase();
+
+  // Check if Claude is frontmost and waiting
+  if (lower.startsWith("claude")) {
+    for (const kw of CLAUDE_WAITING_KEYWORDS) {
+      if (lower.includes(kw.toLowerCase())) return "claude";
+    }
+  }
+
+  // Check if Codex is frontmost and waiting
+  if (lower.startsWith("codex")) {
+    for (const kw of CODEX_WAITING_KEYWORDS) {
+      if (lower.includes(kw.toLowerCase())) return "codex";
+    }
+  }
+
+  return null;
+}
+
+// Enhanced text capture that gets more detail about window state
+async function captureDetailedState(machine) {
+  const script = `tell application "System Events"
+set procs to {name of every process whose frontmost is true}
+set result to ""
+repeat with procName in procs
+try
+set winTitle to name of front window of process (procName as text)
+set result to result & (procName as text) & " — " & winTitle
+on error
+set result to result & (procName as text) & " — sin ventana"
+end try
+end repeat
+-- Also check if Claude is running and has specific UI state
+try
+tell process "Claude"
+set allBtns to name of every button of front window
+set result to result & " | buttons: " & (allBtns as text)
+end tell
+end try
+try
+tell process "Codex"
+set allBtns to name of every button of front window
+set result to result & " | codex-buttons: " & (allBtns as text)
+end tell
+end try
+return result
+end tell`;
+
+  if (isLocalMachine(machine)) {
+    const { error, stdout } = await execLocal(script, 8000);
+    return error ? null : stdout?.trim() || null;
+  }
+
+  const lines = script.split("\n").map((l) => `-e '${l.trim()}'`).join(" ");
+  const remoteCmd = `osascript ${lines}`;
+
+  function attempt(useLocal) {
+    return new Promise((resolve_) => {
+      const sshArgs = buildSshArgs(machine, useLocal);
+      sshArgs.push(remoteCmd);
+      execFile("ssh", sshArgs, { timeout: 10_000 }, (error, stdout) => {
+        resolve_(error ? null : stdout?.trim() || null);
+      });
+    });
+  }
+
+  if (deriveLocalHostname(machine)) {
+    const r = await attempt(true);
+    if (r) return r;
+  }
+  return attempt(false);
+}
+
+async function watchdogCheck() {
+  if (!watchdogState.enabled) return;
+
+  const data = await readMachines();
+  const machines = data.machines.filter((m) => m.ssh?.enabled && (isReachable(m) || isLocalMachine(m)));
+
+  await Promise.allSettled(
+    machines.map(async (machine) => {
+      initMachineWatchdog(machine.id);
+      const mState = watchdogState.perMachine[machine.id];
+      if (!mState.enabled) return;
+
+      // Get detailed state
+      const stateText = await captureDetailedState(machine);
+      if (!stateText) return;
+
+      const target = detectWaitingState(stateText);
+      if (!target) return;
+
+      // Auto-approve!
+      const appName = TARGET_APPS[target];
+      let result;
+      if (deriveLocalHostname(machine) && !isLocalMachine(machine)) {
+        result = await sendKeystroke(machine, true, appName);
+        if (!result.ok) result = await sendKeystroke(machine, false, appName);
+      } else {
+        result = await sendKeystroke(machine, false, appName);
+      }
+
+      if (result.ok) {
+        // Update counters
+        if (target === "claude") mState.claudeCount++;
+        else if (target === "codex") mState.codexCount++;
+        mState.lastApproval = new Date().toISOString();
+        mState.lastTarget = target;
+
+        // Add to log
+        watchdogState.log.push({
+          machine: machine.name,
+          machineId: machine.id,
+          target,
+          at: mState.lastApproval
+        });
+        if (watchdogState.log.length > 50) watchdogState.log.shift();
+
+        // Refresh snapshot after approval
+        triggerPostApproveSnapshot(machine);
+      }
+    })
+  );
+}
+
+export function startWatchdog() {
+  if (watchdogState.intervalId) return;
+  watchdogState.enabled = true;
+  watchdogState.intervalId = setInterval(watchdogCheck, WATCHDOG_INTERVAL_MS);
+  // Run immediately
+  watchdogCheck();
+}
+
+export function stopWatchdog() {
+  watchdogState.enabled = false;
+  if (watchdogState.intervalId) {
+    clearInterval(watchdogState.intervalId);
+    watchdogState.intervalId = null;
+  }
+}
+
+export function setWatchdogEnabled(enabled) {
+  if (enabled) startWatchdog();
+  else stopWatchdog();
+}
+
+export function setMachineWatchdog(machineId, enabled) {
+  initMachineWatchdog(machineId);
+  watchdogState.perMachine[machineId].enabled = enabled;
+}
+
+export function getWatchdogState() {
+  return {
+    enabled: watchdogState.enabled,
+    perMachine: watchdogState.perMachine,
+    log: watchdogState.log.slice(-20)
+  };
 }

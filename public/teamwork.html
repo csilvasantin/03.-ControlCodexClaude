@@ -245,6 +245,45 @@
         border: 1px solid rgba(193, 18, 31, 0.15);
       }
 
+      /* Watchdog toggle */
+      .tw-watchdog-section {
+        display: flex; align-items: center; justify-content: center;
+        gap: 12px; margin-top: 16px; padding: 12px 0;
+      }
+      .tw-toggle { position: relative; width: 48px; height: 26px; }
+      .tw-toggle input { opacity: 0; width: 0; height: 0; }
+      .tw-toggle-slider {
+        position: absolute; cursor: pointer; inset: 0;
+        background: #ccc; border-radius: 26px; transition: .3s;
+      }
+      .tw-toggle-slider::before {
+        content: ""; position: absolute; height: 20px; width: 20px;
+        left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: .3s;
+      }
+      .tw-toggle input:checked + .tw-toggle-slider { background: #2d6a4f; }
+      .tw-toggle input:checked + .tw-toggle-slider::before { transform: translateX(22px); }
+
+      .tw-watchdog-label { font-size: 13px; font-weight: 600; color: var(--ink); }
+      .tw-watchdog-pulse {
+        display: inline-block; width: 8px; height: 8px;
+        background: #2d6a4f; border-radius: 50%; margin-left: 6px;
+        animation: pulse 1.5s infinite;
+      }
+      .tw-watchdog-pulse.off { background: #999; animation: none; }
+      @keyframes pulse {
+        0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(45,106,79,.6); }
+        50% { opacity: .7; box-shadow: 0 0 0 6px rgba(45,106,79,0); }
+      }
+
+      /* Auto-approval badge */
+      .tw-auto-badge {
+        display: inline-flex; align-items: center; gap: 3px;
+        font-size: 11px; color: var(--muted); margin-left: 8px;
+        background: rgba(45,106,79,0.08); padding: 2px 8px;
+        border-radius: 12px; white-space: nowrap;
+      }
+      .tw-auto-badge.has-approvals { color: #2d6a4f; font-weight: 600; }
+
       .tw-machines-approve {
         margin-top: 18px;
         padding: 24px;
@@ -457,7 +496,7 @@
   <body>
     <main class="app">
       <header class="hero">
-        <p class="eyebrow">Control remoto — v1.7.0</p>
+        <p class="eyebrow">Control remoto — v1.8.0</p>
         <h1>AdmiraNext Control</h1>
         <p class="subtitle">Envía prompts y aprueba acciones en Claude y Codex de todo el equipo.</p>
         <nav class="tw-nav"><a href="./index.html">Volver al dashboard</a></nav>
@@ -496,6 +535,17 @@
         </div>
       </section>
 
+      <div class="tw-watchdog-section">
+        <label class="tw-toggle">
+          <input type="checkbox" id="watchdogToggle">
+          <span class="tw-toggle-slider"></span>
+        </label>
+        <span class="tw-watchdog-label">
+          Auto-Approve
+          <span class="tw-watchdog-pulse off" id="watchdogPulse"></span>
+        </span>
+      </div>
+
       <section class="tw-machines-approve">
         <h3>Aprobar por equipo</h3>
         <div id="machineApproveList"></div>
@@ -508,9 +558,9 @@
     </main>
 
     <footer style="text-align:center;padding:24px 0 8px;color:var(--muted);font-size:12px;">
-      AdmiraNext Control v1.7.0 — 2026-03-28
+      AdmiraNext Control v1.8.0 — 2026-03-28
     </footer>
 
-    <script src="./teamwork.js?v=20260328-3" type="module"></script>
+    <script src="./teamwork.js?v=20260328-4" type="module"></script>
   </body>
 </html>
