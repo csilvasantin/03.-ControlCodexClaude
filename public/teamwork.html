@@ -534,7 +534,7 @@
     <canvas id="matrixCanvas"></canvas>
     <main class="app">
       <header class="hero">
-        <p class="eyebrow">Control remoto — v1.8.1</p>
+        <p class="eyebrow">Control remoto — v1.8.2</p>
         <h1>AdmiraNext Control</h1>
         <p class="subtitle">Envía prompts y aprueba acciones en Claude y Codex de todos los equipos de Admira Next.</p>
         <nav class="tw-nav"><a href="./index.html">Volver al dashboard</a></nav>
@@ -596,34 +596,89 @@
     </main>
 
     <footer style="text-align:center;padding:24px 0 8px;color:var(--muted);font-size:12px;">
-      AdmiraNext Control v1.8.1 — 2026-03-28
+      AdmiraNext Control v1.8.2 — 2026-03-28
     </footer>
 
-    <script src="./teamwork.js?v=20260328-7" type="module"></script>
+    <script src="./teamwork.js?v=20260328-8" type="module"></script>
     <script>
       (function() {
         const c = document.getElementById("matrixCanvas");
         const ctx = c.getContext("2d");
         c.width = window.innerWidth;
         c.height = window.innerHeight;
-        window.addEventListener("resize", () => { c.width = window.innerWidth; c.height = window.innerHeight; });
+        window.addEventListener("resize", () => { c.width = window.innerWidth; c.height = window.innerHeight; columns = Math.floor(c.width / fontSize); });
 
         const chars = "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン01234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ<>{}[]=/\\*+-_";
+        const citas = [
+          "El mayor riesgo es no tomar ninguno",
+          "Haz algo hoy que tu yo del futuro agradezca",
+          "Si puedes soñarlo puedes hacerlo",
+          "No busques clientes para tu producto busca productos para tus clientes",
+          "La innovacion distingue al lider del seguidor",
+          "Tu tiempo es limitado no lo desperdicies viviendo la vida de otro",
+          "El exito no es definitivo el fracaso no es fatal lo que cuenta es el coraje",
+          "Empieza donde estas usa lo que tienes haz lo que puedas",
+          "Las grandes cosas se hacen con una serie de cosas pequeñas",
+          "No tengas miedo de renunciar a lo bueno para ir a por lo grandioso",
+          "La mejor forma de predecir el futuro es crearlo",
+          "Mueve rapido y rompe cosas",
+          "Trabaja duro en silencio deja que el exito haga el ruido",
+          "El unico modo de hacer un gran trabajo es amar lo que haces",
+          "Cada experto fue una vez un principiante",
+          "Lo imposible solo tarda un poco mas",
+          "Piensa diferente actua diferente se diferente",
+          "Un emprendedor ve oportunidades donde otros ven problemas",
+          "El fracaso es simplemente la oportunidad de empezar de nuevo",
+          "No cuentes los dias haz que los dias cuenten"
+        ];
         const fontSize = 14;
-        const columns = Math.floor(c.width / fontSize);
+        let columns = Math.floor(c.width / fontSize);
         const drops = Array(columns).fill(1);
+
+        // Some columns show quote characters instead of Matrix chars
+        const quoteColumns = {};  // { colIndex: { text, charIdx } }
+
+        function assignQuote(col) {
+          const cita = citas[Math.floor(Math.random() * citas.length)];
+          quoteColumns[col] = { text: cita, charIdx: 0 };
+        }
+
+        // Initially assign ~8% of columns to quotes
+        for (let i = 0; i < columns; i++) {
+          if (Math.random() < 0.08) assignQuote(i);
+        }
 
         function draw() {
           ctx.fillStyle = "rgba(3, 8, 6, 0.05)";
           ctx.fillRect(0, 0, c.width, c.height);
-          ctx.fillStyle = "#0f0";
           ctx.font = fontSize + "px monospace";
 
           for (let i = 0; i < drops.length; i++) {
-            const char = chars[Math.floor(Math.random() * chars.length)];
-            ctx.fillStyle = Math.random() > 0.98 ? "#fff" : "#0f0";
+            let char;
+            const q = quoteColumns[i];
+
+            if (q) {
+              // Quote column: show next char from the quote
+              char = q.text[q.charIdx] || " ";
+              q.charIdx++;
+              if (q.charIdx >= q.text.length + 5) {
+                // Quote finished, maybe assign a new one or go back to matrix
+                if (Math.random() < 0.4) assignQuote(i);
+                else delete quoteColumns[i];
+              }
+              ctx.fillStyle = "#4f4";  // slightly brighter green for quotes
+            } else {
+              char = chars[Math.floor(Math.random() * chars.length)];
+              ctx.fillStyle = Math.random() > 0.98 ? "#fff" : "#0f0";
+              // Randomly start a new quote on this column
+              if (Math.random() < 0.001) assignQuote(i);
+            }
+
             ctx.fillText(char, i * fontSize, drops[i] * fontSize);
-            if (drops[i] * fontSize > c.height && Math.random() > 0.975) drops[i] = 0;
+            if (drops[i] * fontSize > c.height && Math.random() > 0.975) {
+              drops[i] = 0;
+              if (quoteColumns[i]) quoteColumns[i].charIdx = 0;
+            }
             drops[i]++;
           }
         }
