@@ -613,7 +613,7 @@
       <header class="hero">
         <div class="hero-inner">
           <div class="hero-text">
-            <p class="eyebrow">Control remoto — v2.1.4</p>
+            <p class="eyebrow">Control remoto — v2.1.5</p>
             <h1>AdmiraNext Control</h1>
             <p class="subtitle">Envía prompts y aprueba acciones en Claude y Codex de todos los equipos de Admira Next.</p>
             <nav class="tw-nav"><a href="./index.html">Volver al dashboard</a></nav>
@@ -775,13 +775,30 @@
         const CHARS = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
         function initMatrixGlitch(el) {
           const original = el.textContent;
-          const spans = original.split('').map((ch) => {
+          // Measure each character's natural width BEFORE replacing content
+          const measured = original.split('').map((ch) => {
+            const probe = document.createElement('span');
+            probe.style.visibility = 'hidden';
+            probe.style.position = 'absolute';
+            probe.textContent = ch;
+            el.appendChild(probe);
+            const w = probe.getBoundingClientRect().width;
+            el.removeChild(probe);
+            return { ch, w };
+          });
+
+          el.textContent = '';
+          const spans = measured.map(({ ch, w }) => {
             const s = document.createElement('span');
             s.textContent = ch;
             s.dataset.ch = ch;
+            // Lock the width so katakana replacements never reflow the layout
+            s.style.display = 'inline-block';
+            s.style.width = w + 'px';
+            s.style.textAlign = 'center';
+            s.style.overflow = 'hidden';
             return s;
           });
-          el.textContent = '';
           spans.forEach((s) => el.appendChild(s));
 
           function glitchNext() {
