@@ -201,9 +201,16 @@ function renderMachineApproveList(snapshots) {
 
   machineApproveList.innerHTML = sorted.map((m) => {
     const snap = snapshots?.[m.id];
-    const monitorContent = snap
-      ? `<pre>${snap.text.replace(/</g, "&lt;")}</pre><span class="tw-machine-monitor-time">${formatTimeShort(snap.updatedAt)}</span>`
-      : `<div class="tw-machine-monitor-empty">Sin señal</div>`;
+    let monitorContent;
+    if (snap && snap.type === "image") {
+      const imgSrc = snap.image.startsWith("/") ? apiUrl(snap.image) : snap.image;
+      const cacheBust = imgSrc.includes("?") ? `&t=${Date.now()}` : `?t=${Date.now()}`;
+      monitorContent = `<img src="${imgSrc}${cacheBust}" alt="${m.name}" style="width:100%;height:100%;object-fit:cover;border-radius:6px;"><span class="tw-machine-monitor-time">${formatTimeShort(snap.updatedAt)}</span>`;
+    } else if (snap && snap.text) {
+      monitorContent = `<pre>${snap.text.replace(/</g, "&lt;")}</pre><span class="tw-machine-monitor-time">${formatTimeShort(snap.updatedAt)}</span>`;
+    } else {
+      monitorContent = `<div class="tw-machine-monitor-empty">Sin señal</div>`;
+    }
     return `
     <div class="tw-machine-row" data-id="${m.id}">
       <div class="tw-machine-monitor small" data-monitor="${m.id}">${monitorContent}</div>

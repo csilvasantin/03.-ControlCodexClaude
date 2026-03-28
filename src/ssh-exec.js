@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { resolve } from "node:path";
-import { mkdir } from "node:fs/promises";
+import { mkdir, writeFile, copyFile } from "node:fs/promises";
 import { hostname } from "node:os";
 import { readMachines } from "./store.js";
 
@@ -372,8 +372,8 @@ export async function approveAll(target) {
   // Trigger screenshot refresh for reachable machines (async, don't block)
   setTimeout(() => {
     Promise.allSettled(
-      reachable.map((m) => captureOneSnapshot(m).then((text) => {
-        if (text) machineSnapshots.set(m.id, { text, updatedAt: new Date().toISOString() });
+      reachable.map((m) => captureOneSnapshot(m).then((snap) => {
+        if (snap) machineSnapshots.set(m.id, { ...snap, updatedAt: new Date().toISOString() });
       }))
     );
   }, 2000);
@@ -416,9 +416,9 @@ export async function approveMachine(machineId, target) {
 // Capture a fresh snapshot 2s after approval for visual feedback
 function triggerPostApproveSnapshot(machine) {
   setTimeout(async () => {
-    const text = await captureOneSnapshot(machine);
-    if (text) {
-      machineSnapshots.set(machine.id, { text, updatedAt: new Date().toISOString() });
+    const snap = await captureOneSnapshot(machine);
+    if (snap) {
+      machineSnapshots.set(machine.id, { ...snap, updatedAt: new Date().toISOString() });
     }
   }, 2000);
 }
@@ -443,52 +443,94 @@ export function getAllSnapshots() {
   return result;
 }
 
-async function captureOneSnapshot(machine) {
-  const snapshotScript = 'try\ntell application "Terminal" to get contents of front window\non error\ntell application "System Events"\nset frontApp to name of first process whose frontmost is true\ntry\nset winName to name of front window of first process whose frontmost is true\non error\nset winName to "sin ventana"\nend try\nreturn frontApp & " — " & winName\nend tell\nend try';
+// Python/Quartz command for desktop screenshot (fast, works via SSH)
+const PYTHON_CAPTURE_CMD = 'python3 -c "import Quartz.CoreGraphics as CG;from AppKit import NSBitmapImageRep,NSJPEGFileType;i=CG.CGWindowListCreateImage(CG.CGRectInfinite,CG.kCGWindowListOptionOnScreenOnly,CG.kCGNullWindowID,CG.kCGWindowImageDefault);r=NSBitmapImageRep.alloc().initWithCGImage_(i);d=r.representationUsingType_properties_(NSJPEGFileType,{});d.writeToFile_atomically_(\'/tmp/tw_screen.jpg\',True);print(\'OK\')" 2>/dev/null';
 
-  function parseOutput(stdout) {
-    const text = stdout?.trim();
-    if (!text) return null;
-    return text.split("\n").slice(-20).join("\n");
-  }
+// Capture desktop screenshot for a machine, save locally
+async function captureDesktopScreenshot(machine) {
+  const filename = `snap-${machine.id}.jpg`;
+  const localPath = resolve(SCREENSHOTS_DIR, filename);
 
-  // Local machine: run directly
   if (isLocalMachine(machine)) {
-    const { error, stdout } = await execLocal(snapshotScript);
-    return error ? null : parseOutput(stdout);
+    // Local: use launchctl asuser screencapture (works without Screen Recording perms)
+    return new Promise((resolve_) => {
+      execFile("launchctl", ["asuser", String(process.getuid()), "screencapture", "-x", "-t", "jpg", localPath], { timeout: 10_000 }, (err) => {
+        resolve_(err ? null : filename);
+      });
+    });
   }
 
-  const remoteScript = `osascript \
--e 'try' \
--e 'tell application "Terminal" to get contents of front window' \
--e 'on error' \
--e 'tell application "System Events"' \
--e 'set frontApp to name of first process whose frontmost is true' \
--e 'try' \
--e 'set winName to name of front window of first process whose frontmost is true' \
--e 'on error' \
--e 'set winName to "sin ventana"' \
--e 'end try' \
--e 'return frontApp & " — " & winName' \
--e 'end tell' \
--e 'end try'`;
-
+  // Remote: SSH + Python/Quartz (fast, ~2s)
   function attempt(useLocal) {
-    return new Promise((resolve) => {
+    return new Promise((resolve_) => {
       const sshArgs = buildSshArgs(machine, useLocal);
-      sshArgs.push(remoteScript);
-      execFile("ssh", sshArgs, { timeout: 10_000 }, (error, stdout) => {
-        if (error) resolve(null);
-        else resolve(parseOutput(stdout));
+      sshArgs.push(PYTHON_CAPTURE_CMD);
+
+      execFile("ssh", sshArgs, { timeout: 15_000 }, (err, stdout) => {
+        if (err || !stdout?.includes("OK")) return resolve_(null);
+
+        // SCP the file back
+        const user = machine.ssh.user || "csilvasantin";
+        const host = useLocal
+          ? deriveLocalHostname(machine)
+          : (machine.ssh.ip_tailscale || machine.ssh.host);
+        const scpArgs = buildScpArgs(machine, useLocal);
+        scpArgs.push(`${user}@${host}:/tmp/tw_screen.jpg`, localPath);
+
+        execFile("scp", scpArgs, { timeout: TIMEOUT_MS }, (scpErr) => {
+          resolve_(scpErr ? null : filename);
+        });
       });
     });
   }
 
   if (deriveLocalHostname(machine)) {
-    const text = await attempt(true);
-    if (text) return text;
+    const r = await attempt(true);
+    if (r) return r;
   }
   return attempt(false);
+}
+
+// Fallback: get text description of frontmost app
+async function captureTextFallback(machine) {
+  const script = 'tell application "System Events"\nset frontApp to name of first process whose frontmost is true\ntry\nset winName to name of front window of first process whose frontmost is true\non error\nset winName to "sin ventana"\nend try\nreturn frontApp & " — " & winName\nend tell';
+
+  if (isLocalMachine(machine)) {
+    const { error, stdout } = await execLocal(script);
+    return error ? null : stdout?.trim() || null;
+  }
+
+  const remoteCmd = `osascript -e 'tell application "System Events"' -e 'set frontApp to name of first process whose frontmost is true' -e 'try' -e 'set winName to name of front window of first process whose frontmost is true' -e 'on error' -e 'set winName to "sin ventana"' -e 'end try' -e 'return frontApp & " — " & winName' -e 'end tell'`;
+
+  function attempt(useLocal) {
+    return new Promise((resolve_) => {
+      const sshArgs = buildSshArgs(machine, useLocal);
+      sshArgs.push(remoteCmd);
+      execFile("ssh", sshArgs, { timeout: 10_000 }, (error, stdout) => {
+        resolve_(error ? null : stdout?.trim() || null);
+      });
+    });
+  }
+
+  if (deriveLocalHostname(machine)) {
+    const r = await attempt(true);
+    if (r) return r;
+  }
+  return attempt(false);
+}
+
+async function captureOneSnapshot(machine) {
+  // Try real desktop screenshot first
+  const imgFile = await captureDesktopScreenshot(machine);
+  if (imgFile) {
+    return { type: "image", image: `/api/screenshots/${imgFile}` };
+  }
+  // Fallback to text
+  const text = await captureTextFallback(machine);
+  if (text) {
+    return { type: "text", text };
+  }
+  return null;
 }
 
 export async function refreshAllSnapshots() {
@@ -497,10 +539,10 @@ export async function refreshAllSnapshots() {
 
   await Promise.allSettled(
     sshEnabled.map(async (machine) => {
-      const text = await captureOneSnapshot(machine);
-      if (text) {
+      const snap = await captureOneSnapshot(machine);
+      if (snap) {
         machineSnapshots.set(machine.id, {
-          text,
+          ...snap,
           updatedAt: new Date().toISOString()
         });
       }
