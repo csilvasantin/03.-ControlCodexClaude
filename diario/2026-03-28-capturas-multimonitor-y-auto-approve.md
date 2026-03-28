@@ -54,7 +54,13 @@ AdmiraNext Control (AdmiraNext-Team) — v2.1.x
 ### Ajustes de interfaz
 
 - Botones Aprobar Claude y Aprobar Codex intercambiados (Codex a la izquierda, Claude a la derecha).
-- Versión final del día: v2.1.4.
+- Imagen de las pastillas subida (margin-top: -20px) con "Volver al dashboard" debajo.
+
+### Animación de pastillas roja y azul
+
+- Dos `<div>` con clases `pill-glow pill-glow-red` y `pill-glow pill-glow-blue` añadidos dentro de `.hero-pills`.
+- CSS: `position:absolute`, `mix-blend-mode:screen`, `radial-gradient` rojo/azul.
+- Animaciones `pillPulseRed` y `pillPulseBlue`: oscilan entre `opacity:0.35/scale(0.85)` y `opacity:1/scale(1.2)` en 2.2s con `alternate` / `alternate-reverse` para que latan desfasadas.
 
 ## Estado actual
 
@@ -64,3 +70,5 @@ AdmiraNext Control (AdmiraNext-Team) — v2.1.x
 - Auto-Approve ON por defecto, escaneando cada 15s, con sonido de notificación.
 - Mac Mini muestra preview de las 3 pantallas con disposición en H.
 - Subtítulo hero con efecto glitch Matrix continuo.
+- Pastillas animadas con glows rojo y azul pulsantes.
+- Versión final del día: v2.1.9.
