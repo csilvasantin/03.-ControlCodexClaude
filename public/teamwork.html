@@ -613,7 +613,7 @@
       <header class="hero">
         <div class="hero-inner">
           <div class="hero-text">
-            <p class="eyebrow">Control remoto — v2.1.6</p>
+            <p class="eyebrow">Control remoto — v2.1.7</p>
             <h1>AdmiraNext Control</h1>
             <p class="subtitle">Envía prompts y aprueba acciones en Claude y Codex de todos los equipos de Admira Next.</p>
             <nav class="tw-nav"><a href="./index.html">Volver al dashboard</a></nav>
@@ -777,9 +777,13 @@
           const original = el.textContent;
           el.textContent = '';
 
-          // Each character gets a wrapper with the REAL char always occupying space,
-          // and an ABSOLUTE-positioned overlay for the glitch — layout never shifts.
+          // Spaces render as plain text nodes — no wrapper, no collapse.
+          // Non-space chars get a relative wrapper + absolute glitch overlay.
           const chars = original.split('').map((ch) => {
+            if (ch === ' ') {
+              el.appendChild(document.createTextNode('\u00a0'));
+              return null; // not eligible for glitch
+            }
             const wrapper = document.createElement('span');
             wrapper.style.cssText = 'position:relative;display:inline-block;';
 
@@ -794,7 +798,7 @@
             wrapper.appendChild(glitch);
             el.appendChild(wrapper);
             return { real, glitch, ch };
-          });
+          }).filter(Boolean);
 
           function glitchNext() {
             const eligible = chars.filter((c) => c.ch.trim() !== '');
