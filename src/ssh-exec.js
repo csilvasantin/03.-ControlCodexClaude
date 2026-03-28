@@ -546,27 +546,35 @@ async function captureOneSnapshot(machine) {
 
 export async function refreshAllSnapshots() {
   const data = await readMachines();
+  // Try ALL SSH-enabled machines, not just cached-reachable
   const sshEnabled = data.machines.filter((m) => m.ssh?.enabled);
 
   await Promise.allSettled(
     sshEnabled.map(async (machine) => {
+      // Skip recently-failed machines (retry every 2 min)
+      if (shouldSkipOffline(machine.id)) return;
+
       // Capture screenshot + app states in parallel
       const [snap, appsRaw] = await Promise.all([
         captureOneSnapshot(machine),
         captureAllAppsState(machine)
       ]);
-      const apps = parseAppsState(appsRaw);
 
-      if (snap || appsRaw) {
-        const existing = machineSnapshots.get(machine.id) || {};
-        machineSnapshots.set(machine.id, {
-          ...existing,
-          ...(snap || {}),
-          claudeState: apps.claude,
-          codexState: apps.codex,
-          updatedAt: new Date().toISOString()
-        });
+      if (!snap && !appsRaw && !isLocalMachine(machine)) {
+        markMachineFailed(machine.id);
+        return; // offline
       }
+      markMachineOnline(machine.id);
+
+      const apps = parseAppsState(appsRaw);
+      const existing = machineSnapshots.get(machine.id) || {};
+      machineSnapshots.set(machine.id, {
+        ...existing,
+        ...(snap || {}),
+        claudeState: apps.claude,
+        codexState: apps.codex,
+        updatedAt: new Date().toISOString()
+      });
     })
   );
 }
@@ -606,6 +614,25 @@ const watchdogState = {
   intervalId: null,
   log: []            // last 50 auto-approvals for debugging
 };
+
+// Track last-fail times so we don't hammer offline machines every 30s
+const machineFailTimes = new Map(); // machineId → timestamp of last fail
+const OFFLINE_RETRY_MS = 120_000;   // retry offline machines every 2 min
+
+function shouldSkipOffline(machineId) {
+  if (isLocalMachine({ id: machineId })) return false;
+  const lastFail = machineFailTimes.get(machineId);
+  if (!lastFail) return false;
+  return (Date.now() - lastFail) < OFFLINE_RETRY_MS;
+}
+
+function markMachineFailed(machineId) {
+  machineFailTimes.set(machineId, Date.now());
+}
+
+function markMachineOnline(machineId) {
+  machineFailTimes.delete(machineId);
+}
 
 function initMachineWatchdog(machineId) {
   if (!watchdogState.perMachine[machineId]) {
@@ -803,7 +830,9 @@ async function watchdogCheck() {
   if (!watchdogState.enabled) return;
 
   const data = await readMachines();
-  const machines = data.machines.filter((m) => m.ssh?.enabled && (isReachable(m) || isLocalMachine(m)));
+  // Try ALL SSH-enabled machines — not just cached-reachable ones.
+  // When an offline machine comes back, we'll detect it and start monitoring.
+  const machines = data.machines.filter((m) => m.ssh?.enabled);
 
   await Promise.allSettled(
     machines.map(async (machine) => {
@@ -811,8 +840,16 @@ async function watchdogCheck() {
       const mState = watchdogState.perMachine[machine.id];
       if (!mState.enabled) return;
 
+      // Skip recently-failed (offline) machines to avoid blocking the cycle
+      if (shouldSkipOffline(machine.id)) return;
+
       // Check GUI app states (window titles)
       const raw = await captureAllAppsState(machine);
+      if (!raw && !isLocalMachine(machine)) {
+        markMachineFailed(machine.id);
+        return; // machine unreachable, skip rest
+      }
+      markMachineOnline(machine.id); // machine responded!
       const apps = parseAppsState(raw);
       mState.claudeState = apps.claude;
       mState.codexState = apps.codex;
