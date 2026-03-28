@@ -217,6 +217,10 @@ function renderMachineApproveList(snapshots) {
       <div class="tw-machine-label">
         <span class="tw-machine-name">${m.name}</span><br>
         <span class="tw-machine-member">${m.member}</span>
+        <span class="tw-app-status">
+          ${snap?.claudeState ? `<span class="tw-app-tag claude" title="Claude: ${snap.claudeState}">C</span>` : ""}
+          ${snap?.codexState ? `<span class="tw-app-tag codex" title="Codex: ${snap.codexState}">X</span>` : ""}
+        </span>
       </div>
       <input class="tw-machine-input" data-machine="${m.id}" type="text" placeholder="Prompt para ${m.member}...">
       <select class="tw-approve-sm" data-machine-target="${m.id}" style="background:var(--panel);color:var(--ink);border:1px solid var(--line);padding:8px 6px;font-size:11px;border-radius:10px;">

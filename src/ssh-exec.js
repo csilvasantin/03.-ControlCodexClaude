@@ -537,10 +537,20 @@ export async function refreshAllSnapshots() {
 
   await Promise.allSettled(
     sshEnabled.map(async (machine) => {
-      const snap = await captureOneSnapshot(machine);
-      if (snap) {
+      // Capture screenshot + app states in parallel
+      const [snap, appsRaw] = await Promise.all([
+        captureOneSnapshot(machine),
+        captureAllAppsState(machine)
+      ]);
+      const apps = parseAppsState(appsRaw);
+
+      if (snap || appsRaw) {
+        const existing = machineSnapshots.get(machine.id) || {};
         machineSnapshots.set(machine.id, {
-          ...snap,
+          ...existing,
+          ...(snap || {}),
+          claudeState: apps.claude,
+          codexState: apps.codex,
           updatedAt: new Date().toISOString()
         });
       }
@@ -594,56 +604,31 @@ function initMachineWatchdog(machineId) {
   }
 }
 
-// Detect if text snapshot indicates waiting for approval
-function detectWaitingState(text) {
-  if (!text) return null;
-  const lower = text.toLowerCase();
-
-  // Check if Claude is frontmost and waiting
-  if (lower.startsWith("claude")) {
-    for (const kw of CLAUDE_WAITING_KEYWORDS) {
-      if (lower.includes(kw.toLowerCase())) return "claude";
-    }
-  }
-
-  // Check if Codex is frontmost and waiting
-  if (lower.startsWith("codex")) {
-    for (const kw of CODEX_WAITING_KEYWORDS) {
-      if (lower.includes(kw.toLowerCase())) return "codex";
-    }
-  }
-
-  return null;
-}
-
-// Enhanced text capture that gets more detail about window state
-async function captureDetailedState(machine) {
-  const script = `tell application "System Events"
-set procs to {name of every process whose frontmost is true}
-set result to ""
-repeat with procName in procs
-try
-set winTitle to name of front window of process (procName as text)
-set result to result & (procName as text) & " — " & winTitle
-on error
-set result to result & (procName as text) & " — sin ventana"
-end try
-end repeat
--- Also check if Claude is running and has specific UI state
-try
-tell process "Claude"
-set allBtns to name of every button of front window
-set result to result & " | buttons: " & (allBtns as text)
+// Check BOTH Claude AND Codex status on a machine (not just frontmost app)
+async function captureAllAppsState(machine) {
+  const script = `set r to ""
+tell application "System Events"
+  if exists process "Claude" then
+    try
+      set r to r & "CLAUDE:" & (name of front window of process "Claude")
+    on error
+      set r to r & "CLAUDE:no-window"
+    end try
+  else
+    set r to r & "CLAUDE:OFF"
+  end if
+  set r to r & "|||"
+  if exists process "Codex" then
+    try
+      set r to r & "CODEX:" & (name of front window of process "Codex")
+    on error
+      set r to r & "CODEX:no-window"
+    end try
+  else
+    set r to r & "CODEX:OFF"
+  end if
 end tell
-end try
-try
-tell process "Codex"
-set allBtns to name of every button of front window
-set result to result & " | codex-buttons: " & (allBtns as text)
-end tell
-end try
-return result
-end tell`;
+return r`;
 
   if (isLocalMachine(machine)) {
     const { error, stdout } = await execLocal(script, 8000);
@@ -663,11 +648,42 @@ end tell`;
     });
   }
 
-  if (deriveLocalHostname(machine)) {
+  if (deriveLocalHostname(machine) && !isLocalMachine(machine)) {
     const r = await attempt(true);
     if (r) return r;
   }
   return attempt(false);
+}
+
+// Parse "CLAUDE:windowTitle|||CODEX:windowTitle" into { claude, codex } states
+function parseAppsState(raw) {
+  if (!raw) return { claude: null, codex: null };
+  const parts = raw.split("|||");
+  const result = { claude: null, codex: null };
+  for (const part of parts) {
+    if (part.startsWith("CLAUDE:")) {
+      const val = part.slice(7).trim();
+      result.claude = val === "OFF" ? null : val;
+    }
+    if (part.startsWith("CODEX:")) {
+      const val = part.slice(6).trim();
+      result.codex = val === "OFF" ? null : val;
+    }
+  }
+  return result;
+}
+
+// Detect if a window title indicates waiting for approval
+function isWaitingForApproval(windowTitle, keywords) {
+  if (!windowTitle || windowTitle === "no-window") return false;
+  const lower = windowTitle.toLowerCase();
+  for (const kw of CLAUDE_WAITING_KEYWORDS.concat(keywords)) {
+    if (lower.includes(kw.toLowerCase())) return true;
+  }
+  // Claude Code: the window title changes when waiting for tool approval
+  // A simple heuristic: if the title is just "Claude" it may be idle,
+  // but we should still approve since we can't tell from title alone
+  return false;
 }
 
 async function watchdogCheck() {
@@ -682,44 +698,53 @@ async function watchdogCheck() {
       const mState = watchdogState.perMachine[machine.id];
       if (!mState.enabled) return;
 
-      // Get detailed state
-      const stateText = await captureDetailedState(machine);
-      if (!stateText) return;
+      // Check BOTH apps on this machine
+      const raw = await captureAllAppsState(machine);
+      const apps = parseAppsState(raw);
 
-      const target = detectWaitingState(stateText);
-      if (!target) return;
+      // Store app state for frontend visibility
+      mState.claudeState = apps.claude;
+      mState.codexState = apps.codex;
 
-      // Auto-approve!
-      const appName = TARGET_APPS[target];
-      let result;
-      if (deriveLocalHostname(machine) && !isLocalMachine(machine)) {
-        result = await sendKeystroke(machine, true, appName);
-        if (!result.ok) result = await sendKeystroke(machine, false, appName);
-      } else {
-        result = await sendKeystroke(machine, false, appName);
+      // Check Claude
+      if (apps.claude && apps.claude !== "no-window" && isWaitingForApproval(apps.claude, CLAUDE_WAITING_KEYWORDS)) {
+        await autoApprove(machine, "claude", mState);
       }
 
-      if (result.ok) {
-        // Update counters
-        if (target === "claude") mState.claudeCount++;
-        else if (target === "codex") mState.codexCount++;
-        mState.lastApproval = new Date().toISOString();
-        mState.lastTarget = target;
-
-        // Add to log
-        watchdogState.log.push({
-          machine: machine.name,
-          machineId: machine.id,
-          target,
-          at: mState.lastApproval
-        });
-        if (watchdogState.log.length > 50) watchdogState.log.shift();
-
-        // Refresh snapshot after approval
-        triggerPostApproveSnapshot(machine);
+      // Check Codex
+      if (apps.codex && apps.codex !== "no-window" && isWaitingForApproval(apps.codex, CODEX_WAITING_KEYWORDS)) {
+        await autoApprove(machine, "codex", mState);
       }
     })
   );
+}
+
+async function autoApprove(machine, target, mState) {
+  const appName = TARGET_APPS[target];
+  let result;
+  if (deriveLocalHostname(machine) && !isLocalMachine(machine)) {
+    result = await sendKeystroke(machine, true, appName);
+    if (!result.ok) result = await sendKeystroke(machine, false, appName);
+  } else {
+    result = await sendKeystroke(machine, false, appName);
+  }
+
+  if (result.ok) {
+    if (target === "claude") mState.claudeCount++;
+    else if (target === "codex") mState.codexCount++;
+    mState.lastApproval = new Date().toISOString();
+    mState.lastTarget = target;
+
+    watchdogState.log.push({
+      machine: machine.name,
+      machineId: machine.id,
+      target,
+      at: mState.lastApproval
+    });
+    if (watchdogState.log.length > 50) watchdogState.log.shift();
+
+    triggerPostApproveSnapshot(machine);
+  }
 }
 
 export function startWatchdog() {

@@ -284,6 +284,16 @@
       }
       .tw-auto-badge.has-approvals { color: #2d6a4f; font-weight: 600; }
 
+      /* App status tags */
+      .tw-app-status { display: inline-flex; gap: 4px; margin-left: 4px; }
+      .tw-app-tag {
+        display: inline-block; font-size: 9px; font-weight: 700;
+        padding: 1px 5px; border-radius: 4px; color: white;
+        line-height: 14px; cursor: default;
+      }
+      .tw-app-tag.claude { background: #c9944a; }
+      .tw-app-tag.codex { background: #2d6a4f; }
+
       .tw-machines-approve {
         margin-top: 18px;
         padding: 24px;
@@ -496,7 +506,7 @@
   <body>
     <main class="app">
       <header class="hero">
-        <p class="eyebrow">Control remoto — v1.8.0</p>
+        <p class="eyebrow">Control remoto — v1.8.1</p>
         <h1>AdmiraNext Control</h1>
         <p class="subtitle">Envía prompts y aprueba acciones en Claude y Codex de todos los equipos de Admira Next.</p>
         <nav class="tw-nav"><a href="./index.html">Volver al dashboard</a></nav>
@@ -558,9 +568,9 @@
     </main>
 
     <footer style="text-align:center;padding:24px 0 8px;color:var(--muted);font-size:12px;">
-      AdmiraNext Control v1.8.0 — 2026-03-28
+      AdmiraNext Control v1.8.1 — 2026-03-28
     </footer>
 
-    <script src="./teamwork.js?v=20260328-4" type="module"></script>
+    <script src="./teamwork.js?v=20260328-5" type="module"></script>
   </body>
 </html>
