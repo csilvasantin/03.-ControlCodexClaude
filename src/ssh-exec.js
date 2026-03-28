@@ -504,9 +504,16 @@ async function captureTextFallback(machine) {
   return attempt(false);
 }
 
-// Capture all 3 displays of local Mac Mini in parallel
+// Capture all 3 displays of local Mac Mini in visual order: left→center→right
+// Displays: 2=Claude (portrait left), 1=Studio (landscape center), 3=Codex (portrait right)
+const LOCAL_DISPLAYS = [
+  { d: 2, key: "left",   orient: "portrait"  },  // Claude — ASUS izquierda
+  { d: 1, key: "center", orient: "landscape" },  // Studio Display — centro
+  { d: 3, key: "right",  orient: "portrait"  },  // Codex — ASUS derecha
+];
+
 async function captureLocalAllDisplays(machine) {
-  return Promise.all([1, 2, 3].map((d) => new Promise((resolve_) => {
+  return Promise.all(LOCAL_DISPLAYS.map(({ d }) => new Promise((resolve_) => {
     const tmpPath = join(tmpdir(), `tw_snap_${machine.id}_d${d}_${Date.now()}.jpg`);
     execFile("launchctl", ["asuser", String(process.getuid()), "screencapture", "-D", String(d), "-x", "-t", "jpg", tmpPath],
       { timeout: 10_000 }, (err) => {
@@ -522,17 +529,19 @@ async function captureLocalAllDisplays(machine) {
 
 async function captureOneSnapshot(machine) {
   if (isLocalMachine(machine)) {
-    // Capture all 3 displays
     const bufs = await captureLocalAllDisplays(machine);
-    const keys = [`${machine.id}-d1`, `${machine.id}-d2`, `${machine.id}-d3`];
     const images = [];
-    for (let i = 0; i < 3; i++) {
+    const orientations = [];
+    for (let i = 0; i < LOCAL_DISPLAYS.length; i++) {
+      const { key, orient } = LOCAL_DISPLAYS[i];
+      const imgKey = `${machine.id}-${key}`;
       if (bufs[i]) {
-        imageBuffers.set(keys[i], bufs[i]);
-        images.push(`/api/screenshots/${keys[i]}`);
+        imageBuffers.set(imgKey, bufs[i]);
+        images.push(`/api/screenshots/${imgKey}`);
+        orientations.push(orient);
       }
     }
-    if (images.length > 0) return { type: "images", images };
+    if (images.length > 0) return { type: "images", images, orientations };
     const text = await captureTextFallback(machine);
     return text ? { type: "text", text } : null;
   }

@@ -202,12 +202,13 @@ function renderMachineApproveList(snapshots) {
   machineApproveList.innerHTML = sorted.map((m) => {
     const snap = snapshots?.[m.id];
     let monitorContent;
-    const multiLabels = ["Studio", "Claude", "Codex"];
+    const multiLabels = ["Claude", "Studio", "Codex"];
     if (snap && snap.type === "images") {
       const t = Date.now();
+      const orients = snap.orientations || snap.images.map(() => "portrait");
       monitorContent = `<div class="tw-multi-monitor">${snap.images.map((imgPath, i) => {
         const src = (imgPath.startsWith("/") ? apiUrl(imgPath) : imgPath) + `?t=${t}`;
-        return `<div class="tw-multi-screen"><img src="${src}" alt="${multiLabels[i]}"><span class="tw-screen-label">${multiLabels[i]}</span></div>`;
+        return `<div class="tw-multi-screen ${orients[i]}"><img src="${src}" alt="${multiLabels[i]}"><span class="tw-screen-label">${multiLabels[i]}</span></div>`;
       }).join("")}</div><span class="tw-machine-monitor-time">${formatTimeShort(snap.updatedAt)}</span>`;
     } else if (snap && snap.type === "image") {
       const imgSrc = snap.image.startsWith("/") ? apiUrl(snap.image) : snap.image;
@@ -418,9 +419,10 @@ function updateSnapshotsInPlace(snapshots) {
         const timeEl = mon.querySelector(".tw-machine-monitor-time");
         if (timeEl) timeEl.textContent = formatTimeShort(snap.updatedAt);
       } else {
+        const orients = snap.orientations || snap.images.map(() => "portrait");
         mon.innerHTML = `<div class="tw-multi-monitor">${snap.images.map((imgPath, i) => {
           const src = (imgPath.startsWith("/") ? apiUrl(imgPath) : imgPath) + `?t=${t}`;
-          return `<div class="tw-multi-screen"><img src="${src}" alt="${multiLabels[i]}"><span class="tw-screen-label">${multiLabels[i]}</span></div>`;
+          return `<div class="tw-multi-screen ${orients[i]}"><img src="${src}" alt="${multiLabels[i]}"><span class="tw-screen-label">${multiLabels[i]}</span></div>`;
         }).join("")}</div><span class="tw-machine-monitor-time">${formatTimeShort(snap.updatedAt)}</span>`;
       }
     } else if (snap && snap.type === "image") {

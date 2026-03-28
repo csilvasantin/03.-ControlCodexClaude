@@ -399,11 +399,18 @@
         height: 100%;
         gap: 1px;
         background: #000;
+        align-items: center;
       }
       .tw-multi-screen {
         flex: 1;
         overflow: hidden;
         position: relative;
+        height: 100%;
+      }
+      /* Studio Display — landscape, shorter — creates the H crossbar */
+      .tw-multi-screen.landscape {
+        height: 55%;
+        border-radius: 2px;
       }
       .tw-multi-screen img {
         width: 100%;
@@ -606,7 +613,7 @@
       <header class="hero">
         <div class="hero-inner">
           <div class="hero-text">
-            <p class="eyebrow">Control remoto — v2.1.1</p>
+            <p class="eyebrow">Control remoto — v2.1.2</p>
             <h1>AdmiraNext Control</h1>
             <p class="subtitle">Envía prompts y aprueba acciones en Claude y Codex de todos los equipos de Admira Next.</p>
             <nav class="tw-nav"><a href="./index.html">Volver al dashboard</a></nav>
@@ -676,7 +683,7 @@
       AdmiraNext Control v1.9.8 — 2026-03-28
     </footer>
 
-    <script src="./teamwork.js?v=20260328-16" type="module"></script>
+    <script src="./teamwork.js?v=20260328-17" type="module"></script>
     <script>
       (function() {
         const c = document.getElementById("matrixCanvas");
