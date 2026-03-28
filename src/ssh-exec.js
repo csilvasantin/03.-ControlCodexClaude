@@ -425,7 +425,7 @@ export function getAllSnapshots() {
   return result;
 }
 
-// Python/Quartz remote screenshot: write script to file then run it
+// Python/Quartz remote screenshot + sips resize to 960px
 const PYTHON_CAPTURE_REMOTE = `cat > /tmp/tw_snap.py << 'PYEOF'
 import Quartz.CoreGraphics as CG
 from AppKit import NSBitmapImageRep, NSJPEGFileType
@@ -438,7 +438,7 @@ if i:
 else:
     print("FAIL")
 PYEOF
-python3 /tmp/tw_snap.py 2>/dev/null`;
+python3 /tmp/tw_snap.py 2>/dev/null && sips -Z 960 /tmp/tw_screen.jpg --out /tmp/tw_screen.jpg >/dev/null 2>&1`;
 
 // Capture desktop screenshot for a machine, save locally
 async function captureDesktopScreenshot(machine) {
