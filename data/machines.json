@@ -1,6 +1,6 @@
 {
   "team": "AdmiraNext Team",
-  "updatedAt": "2026-03-30T10:51:20Z",
+  "updatedAt": "2026-03-30T12:08:27Z",
   "tailnet": "tail48b61c.ts.net",
   "machines": [
     {
@@ -134,35 +134,35 @@
       "color": "plata",
       "member": "Nuevo miembro creativo",
       "role": "Creatividad y experiencia",
-      "name": "MacBook Air creativo",
+      "name": "MacBook Air de csilvasantin",
       "machineRole": "Equipo creativo",
       "location": "Madrid",
       "platform": "macOS",
       "status": "maintenance",
-      "lastSeen": "2026-03-30T10:25:00.000Z",
-      "currentFocus": "Primer arranque del MacBook Air creativo",
-      "note": "Alta inicial. Equipo nuevo sin instalar. Pendiente de Tailscale, GitHub, SSH, Claude, Codex, ClaudeBot y CodexBot.",
+      "lastSeen": "2026-03-30T12:08:27Z",
+      "currentFocus": "Onboarding remoto casi completado — pendiente gh auth",
+      "note": "Tailscale y SSH operativos. Chrome, Claude y Codex instalados. ClaudeBot y CodexBot activos. Pendiente cerrar gh auth login.",
       "ssh": {
-        "enabled": false,
+        "enabled": true,
         "user": "csilvasantin",
-        "host": "",
-        "ip_tailscale": "",
-        "connect_tailscale": "",
-        "hostAlias": ""
+        "host": "macbook-air-de-csilvasantin.tail48b61c.ts.net",
+        "ip_tailscale": "100.75.118.75",
+        "connect_tailscale": "ssh csilvasantin@100.75.118.75",
+        "hostAlias": "macbook-air-de-csilvasantin"
       },
       "intake": {
         "source": "new-member-form",
         "submittedAt": "2026-03-30T10:25:00.000Z",
         "teamArea": "Consejo creativo",
         "checklist": {
-          "tailscaleReady": false,
-          "sshReady": false,
+          "tailscaleReady": true,
+          "sshReady": true,
           "githubReady": false,
-          "claudeReady": false,
-          "codexReady": false,
-          "claudeBotReady": false,
-          "codexBotReady": false,
-          "needsHelp": "Equipo nuevo sin instalar. Pendiente de Tailscale, GitHub, Claude, Codex, ClaudeBot y CodexBot."
+          "claudeReady": true,
+          "codexReady": true,
+          "claudeBotReady": true,
+          "codexBotReady": true,
+          "needsHelp": "Pendiente completar gh auth login para dejar GitHub CLI operativo."
         }
       }
     }
