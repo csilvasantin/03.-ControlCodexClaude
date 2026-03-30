@@ -31,3 +31,4 @@ AdmiraNext Team
 - Se ha dado de alta una entrada provisional para `MacBook Air creativo`, en estado `maintenance`, con checklist vacia y foco en primer arranque para poder seguir el onboarding desde el panel.
 - Se ha ejecutado una incorporacion casi completa por SSH sobre `192.168.0.120`: Command Line Tools, Homebrew, Python, `gh`, Chrome, Codex, onboarding copiado y bots levantados en segundo plano.
 - El estado real del equipo ya queda reflejado en `machines.json` con Tailscale y SSH operativos, `Claude` y `Codex` instalados y `ClaudeBot`/`CodexBot` activos. El unico punto que seguia pendiente al cierre era completar `gh auth login`.
+- El cierre final ya ha quedado completado: `gh auth status` valido en el Mac nuevo, Tailscale conectado, bots vivos y ficha actualizada a estado `idle`, lista para arrancar el onboarding diario.

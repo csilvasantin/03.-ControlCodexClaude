@@ -1,6 +1,6 @@
 {
   "team": "AdmiraNext Team",
-  "updatedAt": "2026-03-30T12:08:27Z",
+  "updatedAt": "2026-03-30T12:19:13Z",
   "tailnet": "tail48b61c.ts.net",
   "machines": [
     {
@@ -138,10 +138,10 @@
       "machineRole": "Equipo creativo",
       "location": "Madrid",
       "platform": "macOS",
-      "status": "maintenance",
-      "lastSeen": "2026-03-30T12:08:27Z",
-      "currentFocus": "Onboarding remoto casi completado — pendiente gh auth",
-      "note": "Tailscale y SSH operativos. Chrome, Claude y Codex instalados. ClaudeBot y CodexBot activos. Pendiente cerrar gh auth login.",
+      "status": "idle",
+      "lastSeen": "2026-03-30T12:19:13Z",
+      "currentFocus": "Alta completada y equipo listo para onboarding diario",
+      "note": "Tailscale, SSH y GitHub operativos. Chrome, Claude y Codex instalados. ClaudeBot y CodexBot activos. Equipo listo para empezar.",
       "ssh": {
         "enabled": true,
         "user": "csilvasantin",
@@ -157,12 +157,12 @@
         "checklist": {
           "tailscaleReady": true,
           "sshReady": true,
-          "githubReady": false,
+          "githubReady": true,
           "claudeReady": true,
           "codexReady": true,
           "claudeBotReady": true,
           "codexBotReady": true,
-          "needsHelp": "Pendiente completar gh auth login para dejar GitHub CLI operativo."
+          "needsHelp": "Ninguna. Alta delegada completada."
         }
       }
     }
