@@ -2,6 +2,13 @@
 
 Panel ligero para controlar el estado de los miembros del equipo, centrado en sus ordenadores.
 
+## Alta autoservicio
+
+El repositorio incluye una pagina de alta para que un nuevo fichaje complete su propia ficha de persona, maquina y acceso sin depender de una carga manual inicial.
+
+- Local con persistencia real: `http://127.0.0.1:3030/new-member.html`
+- Publica con exportacion de ficha: `https://csilvasantin.github.io/AdmiraNext-Team/new-member.html`
+
 ## Objetivo
 
 Tener una vista simple y operativa de:
@@ -28,9 +35,10 @@ Este MVP incluye:
 ## Estados disponibles
 
 1. `online`
-2. `busy`
-3. `offline`
-4. `maintenance`
+2. `idle`
+3. `busy`
+4. `offline`
+5. `maintenance`
 
 ## Arranque
 

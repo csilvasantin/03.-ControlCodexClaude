@@ -2,6 +2,7 @@ const summaryNode = document.querySelector("#summary");
 const machinesNode = document.querySelector("#machines");
 const template = document.querySelector("#machine-template");
 let isStaticMode = false;
+const STATUS_ORDER = ["online", "idle", "busy", "offline", "maintenance"];
 
 function formatDate(value) {
   try {
@@ -14,17 +15,17 @@ function formatDate(value) {
 function createSummary(data) {
   const machines = data.machines;
   const members = new Set(machines.map((item) => item.member));
-  const counts = {
-    maquinas: machines.length,
-    miembros: members.size,
-    online: machines.filter((item) => item.status === "online").length,
-    busy: machines.filter((item) => item.status === "busy").length,
-    offline: machines.filter((item) => item.status === "offline").length,
-    maintenance: machines.filter((item) => item.status === "maintenance").length
-  };
+  const counts = [
+    ["maquinas", machines.length],
+    ["miembros", members.size],
+    ...STATUS_ORDER.map((status) => [
+      status,
+      machines.filter((item) => item.status === status).length
+    ])
+  ];
 
   summaryNode.innerHTML = "";
-  for (const [label, value] of Object.entries(counts)) {
+  for (const [label, value] of counts) {
     const card = document.createElement("div");
     card.className = "summary-card";
     card.innerHTML = `<strong>${value}</strong><span>${label}</span>`;
@@ -107,7 +108,7 @@ async function fetchData() {
     isStaticMode = false;
     return await response.json();
   } catch {
-    const response = await fetch("./machines.json?v=20260321-1", { cache: "no-store" });
+    const response = await fetch("./machines.json?v=20260330-1", { cache: "no-store" });
     isStaticMode = true;
     return await response.json();
   }

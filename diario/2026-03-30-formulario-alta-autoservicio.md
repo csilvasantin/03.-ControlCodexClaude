@@ -1,0 +1,22 @@
+# Diario - 2026-03-30
+
+## Proyecto
+
+AdmiraNext Team
+
+## Trabajo realizado
+
+- Se ha corregido la inconsistencia del estado `idle` para que datos, UI y API acepten el mismo conjunto de estados.
+- Se ha creado una nueva pagina de alta autoservicio en `public/new-member.html`.
+- El formulario recoge persona, maquina, acceso tecnico y checklist de onboarding en una sola ficha.
+- La pagina guarda borrador local, genera vista previa en tiempo real y permite copiar un resumen o descargar la ficha en JSON.
+- En modo servidor local, la ficha se registra directamente en `data/machines.json` mediante `POST /api/machines`.
+- En GitHub Pages, el formulario funciona en modo exportacion para que el nuevo fichaje pueda rellenarlo sin depender del panel editable.
+- La portada y el panel de control enlazan ya a la nueva entrada de alta.
+- Se ha actualizado el despliegue de GitHub Pages para publicar la nueva pagina y su script.
+
+## Estado actual
+
+- Alta local prevista en `http://127.0.0.1:3030/new-member.html`.
+- Alta publica prevista en `https://csilvasantin.github.io/AdmiraNext-Team/new-member.html`.
+- El sistema ya permite incorporar una nueva maquina con menos friccion y sin carga manual inicial.

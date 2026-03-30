@@ -2,7 +2,7 @@ import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, resolve } from "node:path";
 
-import { readMachines, updateMachineStatus, updateMachineSync } from "./store.js";
+import { createMachineEntry, readMachines, updateMachineStatus, updateMachineSync } from "./store.js";
 import { sendPromptToMachine, resolveMachineName, getCapture, getImageBuffer, approveAll, approveMachine, getAllSnapshots, getReachableMachines, getWatchdogState, setWatchdogEnabled, setMachineWatchdog, startWatchdog } from "./ssh-exec.js";
 import { addEntry, getHistory } from "./teamwork-store.js";
 
@@ -16,6 +16,7 @@ const MIME_TYPES = {
   ".js": "application/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8"
 };
+const VALID_STATUSES = new Set(["online", "idle", "busy", "offline", "maintenance"]);
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -62,10 +63,34 @@ const server = createServer(async (request, response) => {
     return;
   }
 
-  if (request.method === "GET" && url.pathname === "/api/machines") {
-    const data = await readMachines();
-    sendJson(response, 200, data);
-    return;
+  if (url.pathname === "/api/machines") {
+    if (request.method !== "GET" && request.method !== "POST") {
+      sendJson(response, 405, { error: "Method not allowed" });
+      return;
+    }
+
+    if (request.method === "GET") {
+      const data = await readMachines();
+      sendJson(response, 200, data);
+      return;
+    }
+
+    if (request.method === "POST") {
+      try {
+        const rawBody = await readRequestBody(request);
+        const parsed = rawBody ? JSON.parse(rawBody) : {};
+        if (!VALID_STATUSES.has(parsed.status || "maintenance")) {
+          sendJson(response, 400, { error: "Invalid status" });
+          return;
+        }
+
+        const machine = await createMachineEntry(parsed);
+        sendJson(response, 201, { ok: true, machine });
+      } catch (error) {
+        sendJson(response, 400, { error: error instanceof Error ? error.message : "No se pudo crear la maquina" });
+      }
+      return;
+    }
   }
 
   if (request.method === "POST" && url.pathname.startsWith("/api/machines/") && url.pathname.endsWith("/status")) {
@@ -76,7 +101,7 @@ const server = createServer(async (request, response) => {
     const status = parsed.status;
     const note = parsed.note ?? "";
 
-    if (!["online", "busy", "offline", "maintenance"].includes(status)) {
+    if (!VALID_STATUSES.has(status)) {
       sendJson(response, 400, { error: "Invalid status" });
       return;
     }
@@ -98,7 +123,7 @@ const server = createServer(async (request, response) => {
     const parsed = rawBody ? JSON.parse(rawBody) : {};
     const status = parsed.status;
 
-    if (!["online", "busy", "offline", "maintenance"].includes(status)) {
+    if (!VALID_STATUSES.has(status)) {
       sendJson(response, 400, { error: "Invalid status" });
       return;
     }

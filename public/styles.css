@@ -5,6 +5,7 @@
   --muted: #5f7469;
   --line: rgba(23, 49, 39, 0.12);
   --accent: #1a7f5a;
+  --idle: #3e7ea0;
   --busy: #d0891f;
   --offline: #8b5b63;
   --maintenance: #546e8a;
@@ -481,6 +482,7 @@ h1 {
 }
 
 .status-online { background: var(--accent); }
+.status-idle { background: var(--idle); }
 .status-busy { background: var(--busy); }
 .status-offline { background: var(--offline); }
 .status-maintenance { background: var(--maintenance); }

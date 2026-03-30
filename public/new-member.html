@@ -1,0 +1,709 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Alta nueva | AdmiraNext Team</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <link rel="stylesheet" href="./styles.css?v=20260330-1">
+    <style>
+      .intake-page {
+        padding-bottom: 72px;
+      }
+
+      .intake-hero {
+        position: relative;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at right top, rgba(208, 137, 31, 0.22), transparent 28%),
+          linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.78));
+      }
+
+      .intake-hero::after {
+        content: "";
+        position: absolute;
+        inset: auto -80px -80px auto;
+        width: 220px;
+        height: 220px;
+        border-radius: 999px;
+        background: radial-gradient(circle, rgba(26, 127, 90, 0.18), transparent 68%);
+        pointer-events: none;
+      }
+
+      .intake-nav {
+        margin-top: 18px;
+        display: flex;
+        justify-content: flex-end;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+
+      .intake-nav a {
+        color: var(--accent);
+        text-decoration: none;
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      .intake-shell {
+        display: grid;
+        grid-template-columns: minmax(0, 1.3fr) minmax(320px, 0.9fr);
+        gap: 18px;
+        margin-top: 18px;
+      }
+
+      .intake-form,
+      .intake-side {
+        display: grid;
+        gap: 18px;
+      }
+
+      .intake-panel,
+      .intake-preview-card,
+      .intake-tip {
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        background: var(--panel);
+        backdrop-filter: blur(12px);
+        box-shadow: 0 16px 40px rgba(23, 49, 39, 0.06);
+      }
+
+      .intake-panel {
+        padding: 22px;
+      }
+
+      .section-heading {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 14px;
+        align-items: start;
+        margin-bottom: 16px;
+      }
+
+      .section-step {
+        display: grid;
+        place-items: center;
+        width: 34px;
+        height: 34px;
+        border-radius: 12px;
+        background: rgba(26, 127, 90, 0.12);
+        color: var(--accent);
+        font-weight: 800;
+      }
+
+      .section-heading h2,
+      .intake-side h2,
+      .intake-tip h2 {
+        margin: 0;
+        font-size: 22px;
+      }
+
+      .section-heading p,
+      .intake-side p,
+      .intake-tip p {
+        margin: 6px 0 0;
+        color: var(--muted);
+      }
+
+      .intake-grid {
+        display: grid;
+        gap: 14px;
+      }
+
+      .intake-grid.two {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .field {
+        display: grid;
+        gap: 8px;
+      }
+
+      .field label,
+      .checklist-title {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        font-weight: 700;
+      }
+
+      .field small,
+      .helper {
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.45;
+      }
+
+      textarea,
+      select,
+      input {
+        background: rgba(255, 255, 255, 0.92);
+      }
+
+      textarea {
+        min-height: 96px;
+        resize: vertical;
+      }
+
+      .checklist {
+        display: grid;
+        gap: 12px;
+      }
+
+      .checklist-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .check {
+        display: flex;
+        gap: 10px;
+        align-items: start;
+        padding: 12px 14px;
+        border-radius: 16px;
+        border: 1px solid var(--line);
+        background: rgba(26, 127, 90, 0.04);
+      }
+
+      .check input {
+        width: 18px;
+        height: 18px;
+        margin: 2px 0 0;
+      }
+
+      .check strong {
+        display: block;
+        font-size: 14px;
+      }
+
+      .check span {
+        display: block;
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.4;
+      }
+
+      .mode-row,
+      .intake-actions {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+
+      .mode-pill,
+      .mini-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .mode-pill.api,
+      .mini-pill.ok {
+        background: rgba(26, 127, 90, 0.12);
+        color: var(--accent);
+      }
+
+      .mode-pill.static,
+      .mini-pill.warn {
+        background: rgba(208, 137, 31, 0.14);
+        color: #9a640a;
+      }
+
+      .intake-feedback {
+        display: none;
+        padding: 14px 16px;
+        border-radius: 16px;
+        font-size: 14px;
+      }
+
+      .intake-feedback.ok {
+        display: block;
+        background: rgba(26, 127, 90, 0.12);
+        color: var(--accent);
+      }
+
+      .intake-feedback.err {
+        display: block;
+        background: rgba(139, 91, 99, 0.12);
+        color: var(--offline);
+      }
+
+      .intake-actions button {
+        width: auto;
+        min-width: 170px;
+        padding-inline: 18px;
+      }
+
+      .button-ghost {
+        background: transparent;
+        color: var(--ink);
+        border: 1px solid var(--line);
+      }
+
+      .button-accent {
+        background: linear-gradient(135deg, #1a7f5a, #14563f);
+      }
+
+      .button-warm {
+        background: linear-gradient(135deg, #d0891f, #b77411);
+      }
+
+      .intake-preview-card {
+        padding: 22px;
+      }
+
+      .preview-card-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: start;
+      }
+
+      .preview-card-top h3 {
+        margin: 8px 0 0;
+        font-size: 28px;
+      }
+
+      .preview-card-top p {
+        margin: 6px 0 0;
+      }
+
+      .preview-status {
+        padding: 8px 12px;
+        border-radius: 999px;
+        color: white;
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .preview-status.online { background: var(--accent); }
+      .preview-status.idle { background: var(--idle); }
+      .preview-status.busy { background: var(--busy); }
+      .preview-status.offline { background: var(--offline); }
+      .preview-status.maintenance { background: var(--maintenance); }
+
+      .preview-meta {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin: 18px 0;
+      }
+
+      .preview-meta div {
+        padding-top: 10px;
+        border-top: 1px solid var(--line);
+      }
+
+      .preview-meta dt {
+        font-size: 11px;
+      }
+
+      .preview-meta dd {
+        margin: 6px 0 0;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      .preview-focus {
+        margin-top: 6px;
+        padding: 14px;
+        border-radius: 18px;
+        background: rgba(26, 127, 90, 0.08);
+      }
+
+      .preview-focus strong {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+      }
+
+      .preview-json {
+        margin-top: 18px;
+        padding: 16px;
+        border-radius: 18px;
+        background: #182026;
+        color: #d5f7e9;
+        font-family: "SF Mono", "Menlo", "Monaco", monospace;
+        font-size: 12px;
+        line-height: 1.6;
+        overflow: auto;
+        max-height: 420px;
+      }
+
+      .intake-tip {
+        padding: 22px;
+      }
+
+      .tip-list {
+        display: grid;
+        gap: 10px;
+        margin-top: 14px;
+      }
+
+      .tip-list div {
+        padding: 12px 14px;
+        border-radius: 16px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.7);
+      }
+
+      .tip-list strong {
+        display: block;
+        font-size: 14px;
+      }
+
+      .tip-list span {
+        display: block;
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.45;
+      }
+
+      @media (max-width: 980px) {
+        .intake-shell {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 720px) {
+        .intake-grid.two,
+        .checklist-grid,
+        .preview-meta {
+          grid-template-columns: 1fr;
+        }
+
+        .intake-actions button {
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app intake-page">
+      <header class="hero intake-hero">
+        <p class="eyebrow">Alta autoservicio · v1.0</p>
+        <h1>Nuevo miembro</h1>
+        <p class="subtitle">Completa tu ficha una sola vez. Con esto el equipo puede darte de alta en el panel, preparar el acceso remoto y arrancar el onboarding sin perseguirte por chat.</p>
+        <nav class="intake-nav">
+          <a href="./index.html">Dashboard</a>
+          <a href="./teamwork.html">Control</a>
+        </nav>
+      </header>
+
+      <section class="intake-shell">
+        <form id="intakeForm" class="intake-form" novalidate>
+          <section class="intake-panel">
+            <div class="section-heading">
+              <div class="section-step">1</div>
+              <div>
+                <h2>Quién eres</h2>
+                <p>Solo lo imprescindible para saber cómo quieres aparecer en el equipo y dónde estás trabajando.</p>
+              </div>
+            </div>
+
+            <div class="intake-grid two">
+              <div class="field">
+                <label for="member">Nombre visible</label>
+                <input id="member" name="member" type="text" placeholder="Ej. Maria" required>
+              </div>
+
+              <div class="field">
+                <label for="role">Rol</label>
+                <input id="role" name="role" type="text" list="role-suggestions" placeholder="Ej. Operaciones y soporte" required>
+              </div>
+
+              <div class="field">
+                <label for="teamArea">Area o equipo</label>
+                <input id="teamArea" name="teamArea" type="text" placeholder="Ej. Admira Next, showroom, support">
+              </div>
+
+              <div class="field">
+                <label for="location">Ubicacion</label>
+                <input id="location" name="location" type="text" value="Madrid" placeholder="Madrid">
+              </div>
+            </div>
+          </section>
+
+          <section class="intake-panel">
+            <div class="section-heading">
+              <div class="section-step">2</div>
+              <div>
+                <h2>Tu maquina principal</h2>
+                <p>Esta ficha se usa para darte de alta en el panel operativo. Rellena el nombre del equipo tal y como quieras verlo allí.</p>
+              </div>
+            </div>
+
+            <div class="intake-grid two">
+              <div class="field">
+                <label for="machineName">Nombre visible de la maquina</label>
+                <input id="machineName" name="machineName" type="text" placeholder="Ej. MacBook Air de Maria" required>
+              </div>
+
+              <div class="field">
+                <label for="machineRole">Rol de la maquina</label>
+                <input id="machineRole" name="machineRole" type="text" list="machine-role-suggestions" value="Equipo principal" required>
+              </div>
+
+              <div class="field">
+                <label for="platform">Plataforma</label>
+                <select id="platform" name="platform">
+                  <option value="macOS">macOS</option>
+                  <option value="Windows">Windows</option>
+                  <option value="Linux">Linux</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="color">Color o acabado</label>
+                <select id="color" name="color">
+                  <option value="plata">plata</option>
+                  <option value="gris">gris</option>
+                  <option value="negro">negro</option>
+                  <option value="azul">azul</option>
+                  <option value="otro">otro</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="status">Estado inicial</label>
+                <select id="status" name="status">
+                  <option value="maintenance">maintenance · necesita setup</option>
+                  <option value="idle">idle · listo pero sin tarea activa</option>
+                  <option value="online">online · operativo ahora</option>
+                  <option value="busy">busy · trabajando ya</option>
+                  <option value="offline">offline · aun sin conectar</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="currentFocus">Foco actual</label>
+                <input id="currentFocus" name="currentFocus" type="text" value="Onboarding y puesta a punto del equipo" placeholder="En que estas ahora mismo">
+              </div>
+            </div>
+          </section>
+
+          <section class="intake-panel">
+            <div class="section-heading">
+              <div class="section-step">3</div>
+              <div>
+                <h2>Acceso tecnico</h2>
+                <p>Si ya tienes Tailscale o SSH funcionando, rellénalo. Si no, déjalo pendiente y el sistema te dejará igualmente preparado.</p>
+              </div>
+            </div>
+
+            <div class="intake-grid two">
+              <div class="field">
+                <label for="hostAlias">Nombre corto en Tailscale</label>
+                <input id="hostAlias" name="hostAlias" type="text" placeholder="Ej. macbookairmaria">
+                <small id="tailnetHint">Si lo indicas, se convertira en tu host completo.</small>
+              </div>
+
+              <div class="field">
+                <label for="tailscaleIp">IP Tailscale</label>
+                <input id="tailscaleIp" name="tailscaleIp" type="text" placeholder="Ej. 100.70.10.22">
+              </div>
+
+              <div class="field">
+                <label for="sshUser">Usuario SSH</label>
+                <input id="sshUser" name="sshUser" type="text" value="csilvasantin" placeholder="csilvasantin">
+              </div>
+
+              <div class="field">
+                <label for="remoteReady">Acceso remoto</label>
+                <select id="remoteReady" name="remoteReady">
+                  <option value="no">Todavia no</option>
+                  <option value="yes">Si, ya podeis entrar</option>
+                </select>
+              </div>
+            </div>
+          </section>
+
+          <section class="intake-panel">
+            <div class="section-heading">
+              <div class="section-step">4</div>
+              <div>
+                <h2>Checklist de arranque</h2>
+                <p>Marca solo lo que ya esté hecho. Si algo falta, no pasa nada: nos sirve precisamente para saber el siguiente paso.</p>
+              </div>
+            </div>
+
+            <div class="checklist">
+              <div class="checklist-title">Estado del onboarding tecnico</div>
+              <div class="checklist-grid">
+                <label class="check">
+                  <input type="checkbox" name="tailscaleReady">
+                  <span><strong>Tailscale listo</strong>Conectado y operativo en tu equipo.</span>
+                </label>
+
+                <label class="check">
+                  <input type="checkbox" name="sshReady">
+                  <span><strong>SSH verificado</strong>Ya podemos entrar al equipo sin pruebas pendientes.</span>
+                </label>
+
+                <label class="check">
+                  <input type="checkbox" name="githubReady">
+                  <span><strong>GitHub listo</strong>Tu acceso a repos y GitHub CLI ya funciona.</span>
+                </label>
+
+                <label class="check">
+                  <input type="checkbox" name="claudeBotReady">
+                  <span><strong>ClaudeBot activo</strong>El bot de apoyo ya esta instalado y funcionando.</span>
+                </label>
+
+                <label class="check">
+                  <input type="checkbox" name="codexBotReady">
+                  <span><strong>CodexBot activo</strong>El bot de apoyo ya esta instalado y funcionando.</span>
+                </label>
+              </div>
+
+              <div class="field">
+                <label for="needsHelp">Que te falta o en que necesitas ayuda</label>
+                <textarea id="needsHelp" name="needsHelp" placeholder="Ej. Me falta activar Tailscale, no se si GitHub CLI ya esta autenticado o necesito ayuda con permisos de macOS."></textarea>
+              </div>
+
+              <div class="field">
+                <label for="note">Nota adicional</label>
+                <textarea id="note" name="note" placeholder="Cualquier detalle operativo que le venga bien al equipo saber desde el minuto uno."></textarea>
+              </div>
+            </div>
+          </section>
+
+          <section class="intake-panel">
+            <div class="section-heading">
+              <div class="section-step">5</div>
+              <div>
+                <h2>Enviar o exportar</h2>
+                <p>Si el panel local está abierto, esta ficha se registra sola. Si estás en la versión pública, se descargará un JSON listo para compartir.</p>
+              </div>
+            </div>
+
+            <div class="mode-row">
+              <span id="modeBadge" class="mode-pill static">Cargando contexto</span>
+              <span id="modeHint" class="helper">Comprobando si estamos conectados al panel editable o a la versión pública.</span>
+            </div>
+
+            <div class="intake-actions" style="margin-top:14px;">
+              <button id="submitButton" class="button-accent" type="submit">Registrar alta</button>
+              <button id="downloadButton" class="button-warm" type="button">Descargar ficha JSON</button>
+              <button id="copyButton" class="button-ghost" type="button">Copiar resumen</button>
+              <button id="resetButton" class="button-ghost" type="button">Empezar de nuevo</button>
+            </div>
+
+            <div id="feedback" class="intake-feedback"></div>
+          </section>
+        </form>
+
+        <aside class="intake-side">
+          <section class="intake-tip">
+            <h2>Como rellenarlo</h2>
+            <p>Piensa en este formulario como una entrega de relevos: lo bastante completo para que el equipo pueda continuar sin volver a preguntarte lo mismo.</p>
+            <div class="tip-list">
+              <div>
+                <strong>No hace falta esperar a tenerlo todo</strong>
+                <span>Si algo no está listo, márcalo como pendiente y deja la ayuda que necesitas. Eso ya nos sirve para arrancar.</span>
+              </div>
+              <div>
+                <strong>El nombre visible importa</strong>
+                <span>Es como saldrá tu equipo en el panel, así que usa un nombre reconocible por todos.</span>
+              </div>
+              <div>
+                <strong>La vista previa es tu comprobacion final</strong>
+                <span>Antes de enviar, revisa que el ID sugerido, el host y el foco actual tengan sentido.</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="intake-preview-card">
+            <div class="preview-card-top">
+              <div>
+                <p class="eyebrow" style="margin:0;">Vista previa</p>
+                <h3 id="previewName">Equipo pendiente</h3>
+                <p id="previewMember">Sin miembro definido</p>
+              </div>
+              <span id="previewStatus" class="preview-status maintenance">maintenance</span>
+            </div>
+
+            <div class="mode-row" style="margin-top:14px;">
+              <span id="previewMode" class="mini-pill warn">sin guardar</span>
+              <span id="previewChecklist" class="helper">Todavia no hay checklist suficiente para generar la ficha.</span>
+            </div>
+
+            <dl class="preview-meta">
+              <div>
+                <dt>ID sugerido</dt>
+                <dd id="previewId">admira-equipo</dd>
+              </div>
+              <div>
+                <dt>Host Tailscale</dt>
+                <dd id="previewHost">Pendiente</dd>
+              </div>
+              <div>
+                <dt>SSH</dt>
+                <dd id="previewSsh">Pendiente</dd>
+              </div>
+              <div>
+                <dt>Ubicacion</dt>
+                <dd id="previewLocation">Madrid</dd>
+              </div>
+              <div>
+                <dt>Rol</dt>
+                <dd id="previewRole">Sin rol definido</dd>
+              </div>
+              <div>
+                <dt>Maquina</dt>
+                <dd id="previewMachineRole">Equipo principal</dd>
+              </div>
+            </dl>
+
+            <div class="preview-focus">
+              <strong>Trabajo actual</strong>
+              <div id="previewFocus">Onboarding y puesta a punto del equipo</div>
+            </div>
+
+            <pre id="jsonPreview" class="preview-json">{}</pre>
+          </section>
+        </aside>
+      </section>
+    </main>
+
+    <datalist id="role-suggestions">
+      <option value="Operaciones"></option>
+      <option value="Operaciones y soporte"></option>
+      <option value="Desarrollo y pruebas"></option>
+      <option value="Coordinacion y automatizacion"></option>
+      <option value="Direccion"></option>
+      <option value="Diseno y producto"></option>
+      <option value="Customer care"></option>
+      <option value="Comercial"></option>
+    </datalist>
+
+    <datalist id="machine-role-suggestions">
+      <option value="Equipo principal"></option>
+      <option value="Equipo activo"></option>
+      <option value="Equipo de desarrollo"></option>
+      <option value="Direccion"></option>
+      <option value="Servidor central / Hub"></option>
+      <option value="Equipo de respaldo"></option>
+    </datalist>
+
+    <script src="./new-member.js?v=20260330-1" type="module"></script>
+  </body>
+</html>
