@@ -1,6 +1,7 @@
 const quickInput = document.querySelector("#quickInput");
 const sendAllBtn = document.querySelector("#sendAllBtn");
 const onboardingAllBtn = document.querySelector("#onboardingAllBtn");
+const sendAllTarget = document.querySelector("#sendAllTarget");
 const feedback = document.querySelector("#feedback");
 const historyList = document.querySelector("#historyList");
 
@@ -31,6 +32,13 @@ function showFeedback(text, ok) {
   feedback.textContent = text;
   feedback.className = "tw-feedback " + (ok ? "ok" : "err");
   setTimeout(() => { feedback.className = "tw-feedback"; }, 4000);
+}
+
+function syncTopActionVisibility() {
+  const readonly = isStaticMode;
+  if (sendAllTarget) sendAllTarget.hidden = readonly;
+  if (sendAllBtn) sendAllBtn.hidden = readonly;
+  if (onboardingAllBtn) onboardingAllBtn.hidden = readonly;
 }
 
 function formatTime(iso) {
@@ -78,9 +86,11 @@ function parseQuickInput(text) {
   return null;
 }
 
-const sendAllTarget = document.querySelector("#sendAllTarget");
-
 async function sendToAll(prompt) {
+  if (isStaticMode) {
+    showFeedback("Panel en solo lectura en esta URL publica.", false);
+    return;
+  }
   sendAllBtn.disabled = true;
   sendAllBtn.textContent = "Enviando...";
   const target = sendAllTarget.value;
@@ -106,6 +116,10 @@ async function sendToAll(prompt) {
 }
 
 async function sendOnboardingAll(prompt = DEFAULT_ONBOARDING_PROMPT) {
+  if (isStaticMode) {
+    showFeedback("Panel en solo lectura en esta URL publica.", false);
+    return;
+  }
   onboardingAllBtn.disabled = true;
   sendAllBtn.disabled = true;
   onboardingAllBtn.textContent = "Lanzando...";
@@ -216,9 +230,8 @@ async function loadMachines() {
     const data = await res.json();
     machines = data.machines;
     isStaticMode = true;
+    syncTopActionVisibility();
     renderMachineApproveList(null);
-    if (sendAllBtn) { sendAllBtn.textContent = "Solo lectura"; sendAllBtn.disabled = true; }
-    if (onboardingAllBtn) { onboardingAllBtn.textContent = "Solo lectura"; onboardingAllBtn.disabled = true; }
   } catch {
     // no machines
   }
