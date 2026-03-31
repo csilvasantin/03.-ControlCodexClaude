@@ -567,11 +567,15 @@ function updateSnapshotsInPlace(snapshots) {
     }
   }
 
-  // Re-sort rows solo si el orden ha cambiado (evita reflow innecesario)
-  const rows = [...machineApproveList.querySelectorAll(".tw-machine-row")];
-  const sorted = [...rows].sort((a, b) => (snapshots?.[b.dataset.id] ? 1 : 0) - (snapshots?.[a.dataset.id] ? 1 : 0));
-  const orderChanged = rows.some((r, i) => r !== sorted[i]);
-  if (orderChanged) sorted.forEach((row) => machineApproveList.appendChild(row));
+  // Re-sort rows dentro de su grupo para no romper el acordeon
+  for (const group of ["council", "worker"]) {
+    const panel = machineApproveList.querySelector(`[data-group-panel="${group}"]`);
+    if (!panel) continue;
+    const rows = [...panel.querySelectorAll(".tw-machine-row")];
+    const sorted = [...rows].sort((a, b) => (snapshots?.[b.dataset.id] ? 1 : 0) - (snapshots?.[a.dataset.id] ? 1 : 0));
+    const orderChanged = rows.some((r, i) => r !== sorted[i]);
+    if (orderChanged) sorted.forEach((row) => panel.appendChild(row));
+  }
 }
 
 async function loadSnapshots() {
