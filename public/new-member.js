@@ -529,6 +529,11 @@ ensure_formula python
 ensure_cask google-chrome
 ensure_cask tailscale
 
+step "Configurando politica de energia"
+echo "Aplicando: hasta 4 horas enchufado y 1 hora en bateria."
+sudo pmset -c sleep 240 || true
+sudo pmset -b sleep 60 || true
+
 step "Configurando Google Chrome"
 defaultbrowser chrome || true
 open -a "Google Chrome" || true
@@ -579,6 +584,7 @@ pause_for_user
 
 step "Checklist final"
 echo "- Google Chrome instalado y por defecto"
+echo "- energia: sleep 240 en corriente y sleep 60 en bateria"
 echo "- Tailscale conectado"
 echo "- SSH habilitado"
 echo "- gh auth status correcto"
