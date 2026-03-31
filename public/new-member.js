@@ -1,5 +1,5 @@
 const STORAGE_KEY = "admira-next-new-member-draft-v1";
-const MACHINES_CACHE_BUST = "20260330-2";
+const MACHINES_CACHE_BUST = "20260331-1";
 const DEFAULT_FOCUS = "Onboarding y puesta a punto del equipo";
 const DEFAULT_LOCATION = "Madrid";
 const DEFAULT_MACHINE_ROLE = "Equipo principal";
@@ -67,6 +67,25 @@ const context = {
 };
 const params = new URLSearchParams(window.location.search);
 const intakePresets = {
+  "ceo-macbook-air-clean": {
+    teamArea: "Consejo ejecutivo",
+    role: "CEO",
+    machineName: "MacBook Air CEO",
+    machineRole: "Direccion",
+    platform: "macOS",
+    color: "plata",
+    status: "maintenance",
+    currentFocus: "Primer arranque del MacBook Air CEO",
+    remoteReady: "no",
+    tailscaleReady: false,
+    sshReady: false,
+    githubReady: false,
+    claudeReady: false,
+    codexReady: false,
+    claudeBotReady: false,
+    codexBotReady: false,
+    needsHelp: "Equipo principal CEO sin instalar. Pendiente de Tailscale, GitHub, Claude, Codex, ClaudeBot y CodexBot."
+  },
   "creative-macbook-air-clean": {
     teamArea: "Consejo creativo",
     role: "Creatividad y experiencia",
@@ -392,7 +411,7 @@ function buildBootstrapScript(draft, derived) {
   const member = draft.member || "Nuevo miembro";
   const role = draft.role || "Sin rol";
   const teamArea = draft.teamArea || "Admira Next";
-  const machineName = draft.machineName || "Mac creativo";
+  const machineName = draft.machineName || "Mac nuevo";
   const hostAlias = normalizeToken(draft.hostAlias) || "pendiente-host";
   const focus = draft.currentFocus || DEFAULT_FOCUS;
   const note = draft.note || derived.machineRecord.note;

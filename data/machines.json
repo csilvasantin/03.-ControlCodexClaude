@@ -1,6 +1,6 @@
 {
   "team": "AdmiraNext Team",
-  "updatedAt": "2026-03-30T12:19:13Z",
+  "updatedAt": "2026-03-31T06:30:57Z",
   "tailnet": "tail48b61c.ts.net",
   "machines": [
     {
@@ -130,18 +130,18 @@
       }
     },
     {
-      "id": "admira-macbookair-creativo",
+      "id": "admira-macbookair-ceo",
       "color": "plata",
-      "member": "Nuevo miembro creativo",
-      "role": "Creatividad y experiencia",
-      "name": "MacBook Air de csilvasantin",
-      "machineRole": "Equipo creativo",
+      "member": "Cesar",
+      "role": "CEO",
+      "name": "MacBook Air CEO",
+      "machineRole": "Direccion",
       "location": "Madrid",
       "platform": "macOS",
       "status": "idle",
       "lastSeen": "2026-03-30T12:19:13Z",
-      "currentFocus": "Alta completada y equipo listo para onboarding diario",
-      "note": "Tailscale, SSH y GitHub operativos. Chrome, Claude y Codex instalados. ClaudeBot y CodexBot activos. Equipo listo para empezar.",
+      "currentFocus": "Direccion ejecutiva y coordinacion del DreamTeam",
+      "note": "Tailscale, SSH y GitHub operativos. Chrome, Claude y Codex instalados. ClaudeBot y CodexBot activos. Perfil principal CEO listo para trabajo diario.",
       "ssh": {
         "enabled": true,
         "user": "csilvasantin",
@@ -153,7 +153,7 @@
       "intake": {
         "source": "new-member-form",
         "submittedAt": "2026-03-30T10:25:00.000Z",
-        "teamArea": "Consejo creativo",
+        "teamArea": "Consejo ejecutivo",
         "checklist": {
           "tailscaleReady": true,
           "sshReady": true,
@@ -162,7 +162,7 @@
           "codexReady": true,
           "claudeBotReady": true,
           "codexBotReady": true,
-          "needsHelp": "Ninguna. Alta delegada completada."
+          "needsHelp": "Ninguna. Perfil CEO operativo."
         }
       }
     }

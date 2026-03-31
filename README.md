@@ -8,6 +8,8 @@ El repositorio incluye una pagina de alta para que un nuevo fichaje complete su 
 
 - Local con persistencia real: `http://127.0.0.1:3030/new-member.html`
 - Publica con exportacion de ficha: `https://csilvasantin.github.io/AdmiraNext-Team/new-member.html`
+- Entrada corta principal `CEO`: `http://127.0.0.1:3030/alta` y `http://127.0.0.1:3030/ceo`
+- Entrada creativa: `http://127.0.0.1:3030/alta-creativa`
 
 ## Objetivo
 
