@@ -1331,7 +1331,7 @@ const CODEX_APPROVAL_PATTERNS = [
 
 const watchdogState = {
   enabled: false,
-  perMachine: {},    // { [machineId]: { enabled, claudeCount, codexCount, lastApproval, lastTarget } }
+  perMachine: {},    // { [machineId]: { enabled, claudeCount, codexCount, currentSignals, lastDetection* } }
   intervalId: null,
   log: []            // last 50 auto-approvals for debugging
 };
@@ -1362,9 +1362,94 @@ function initMachineWatchdog(machineId) {
       claudeCount: 0,
       codexCount: 0,
       lastApproval: null,
-      lastTarget: null
+      lastTarget: null,
+      lastSeenAt: null,
+      currentSignals: [],
+      lastDetectionAt: null,
+      lastDetectionTarget: null,
+      lastDetectionLabel: null,
+      lastDetectionSource: null,
+      lastDetectionSummary: null,
+      lastDetectionStatus: null,
+      lastResolutionAt: null
     };
   }
+}
+
+function buildWatchdogSignal(target, preferredTerminalApp = "") {
+  switch (target) {
+    case "claude":
+      return {
+        target,
+        family: "claude",
+        label: "Claude Desktop",
+        source: "Claude",
+        summary: "Claude Desktop"
+      };
+    case "codex":
+      return {
+        target,
+        family: "codex",
+        label: "Codex app",
+        source: "Codex",
+        summary: "Codex app"
+      };
+    case "terminal_claude":
+      return {
+        target,
+        family: "claude",
+        label: "Claude Code",
+        source: preferredTerminalApp || "Terminal",
+        summary: `Claude Code · ${preferredTerminalApp || "Terminal"}`
+      };
+    case "terminal_codex":
+      return {
+        target,
+        family: "codex",
+        label: "Codex CLI",
+        source: preferredTerminalApp || "Terminal",
+        summary: `Codex CLI · ${preferredTerminalApp || "Terminal"}`
+      };
+    default:
+      return {
+        target,
+        family: "auto",
+        label: target || "Aprobacion",
+        source: preferredTerminalApp || "",
+        summary: target || "Aprobacion"
+      };
+  }
+}
+
+function registerMachineSignal(mState, target, preferredTerminalApp = "") {
+  const detectedAt = new Date().toISOString();
+  const meta = buildWatchdogSignal(target, preferredTerminalApp);
+  const signal = {
+    ...meta,
+    detectedAt,
+    status: "pending",
+    resolvedAt: null
+  };
+
+  mState.currentSignals.push(signal);
+  mState.lastDetectionAt = detectedAt;
+  mState.lastDetectionTarget = meta.target;
+  mState.lastDetectionLabel = meta.label;
+  mState.lastDetectionSource = meta.source;
+  mState.lastDetectionSummary = meta.summary;
+  mState.lastDetectionStatus = "pending";
+
+  return signal;
+}
+
+function finalizeMachineSignal(mState, signal, status) {
+  const resolvedAt = new Date().toISOString();
+  if (signal) {
+    signal.status = status;
+    signal.resolvedAt = resolvedAt;
+  }
+  mState.lastDetectionStatus = status;
+  mState.lastResolutionAt = resolvedAt;
 }
 
 // Check BOTH Claude AND Codex status on a machine (not just frontmost app)
@@ -1757,10 +1842,13 @@ async function watchdogCheck() {
       // Check GUI app states (window titles)
       const raw = await captureAllAppsState(machine);
       if (!raw && !isLocalMachine(machine)) {
+        mState.currentSignals = [];
         markMachineFailed(machine.id);
         return; // machine unreachable, skip rest
       }
       markMachineOnline(machine.id); // machine responded!
+      mState.lastSeenAt = new Date().toISOString();
+      mState.currentSignals = [];
       const apps = parseAppsState(raw);
       mState.claudeState = apps.claude;
       mState.codexState = apps.codex;
@@ -1773,8 +1861,10 @@ async function watchdogCheck() {
         const buttonsStr = await detectClaudeApprovalButtons(machine);
         mState.claudeButtons = buttonsStr;
         if (hasClaudeToolApproval(buttonsStr)) {
+          const signal = registerMachineSignal(mState, "claude");
           playApprovalSound("claude");
-          await autoApprove(machine, "claude", mState);
+          const approval = await autoApprove(machine, "claude", mState);
+          finalizeMachineSignal(mState, signal, approval.ok ? "auto-approved" : approval.skipped ? "cooldown" : "pending");
           claudeApproved = true;
         }
       }
@@ -1787,15 +1877,19 @@ async function watchdogCheck() {
           "accept", "aceptar", "permission", "permiso", "waiting", "esperando",
           "y/n", "allow", "permitir"].some((kw) => codexTitle.includes(kw));
         if (titleHasApproval) {
+          const signal = registerMachineSignal(mState, "codex");
           playApprovalSound("codex");
-          await autoApprove(machine, "codex", mState);
+          const approval = await autoApprove(machine, "codex", mState);
+          finalizeMachineSignal(mState, signal, approval.ok ? "auto-approved" : approval.skipped ? "cooldown" : "pending");
           codexApproved = true;
         } else {
           // 2. Read Codex app text content for numbered approval options
           const codexText = await detectCodexApproval(machine);
           if (hasCodexApproval(codexText)) {
+            const signal = registerMachineSignal(mState, "codex");
             playApprovalSound("codex");
-            await autoApprove(machine, "codex", mState);
+            const approval = await autoApprove(machine, "codex", mState);
+            finalizeMachineSignal(mState, signal, approval.ok ? "auto-approved" : approval.skipped ? "cooldown" : "pending");
             codexApproved = true;
           }
         }
@@ -1809,12 +1903,16 @@ async function watchdogCheck() {
         const claudeTerminalApp = !claudeApproved ? extractPendingTerminalApp(termResult, "CLAUDE_TERM") : "";
         const codexTerminalApp = !codexApproved ? extractPendingTerminalApp(termResult, "CODEX_TERM") : "";
         if (!claudeApproved && claudeTerminalApp) {
+          const signal = registerMachineSignal(mState, "terminal_claude", claudeTerminalApp);
           playApprovalSound("terminal_claude");
-          await autoApprove(machine, "terminal_claude", mState, claudeTerminalApp);
+          const approval = await autoApprove(machine, "terminal_claude", mState, claudeTerminalApp);
+          finalizeMachineSignal(mState, signal, approval.ok ? "auto-approved" : approval.skipped ? "cooldown" : "pending");
         }
         if (!codexApproved && codexTerminalApp) {
+          const signal = registerMachineSignal(mState, "terminal_codex", codexTerminalApp);
           playApprovalSound("terminal_codex");
-          await autoApprove(machine, "terminal_codex", mState, codexTerminalApp);
+          const approval = await autoApprove(machine, "terminal_codex", mState, codexTerminalApp);
+          finalizeMachineSignal(mState, signal, approval.ok ? "auto-approved" : approval.skipped ? "cooldown" : "pending");
         }
       }
     })
@@ -1828,7 +1926,9 @@ async function autoApprove(machine, target, mState, preferredTerminalApp = "") {
   // Cooldown: avoid double-approving while dialog is still clearing
   const cooldownKey = `${machine.id}:${target}`;
   const lastTime = lastApprovalTimes.get(cooldownKey) || 0;
-  if (Date.now() - lastTime < APPROVAL_COOLDOWN_MS) return;
+  if (Date.now() - lastTime < APPROVAL_COOLDOWN_MS) {
+    return { ok: false, skipped: true, reason: "cooldown" };
+  }
   lastApprovalTimes.set(cooldownKey, Date.now());
 
   const effectiveTarget = TARGET_APPS[target] ? target : (target === "terminal_claude" ? "terminal" : target);
@@ -1840,22 +1940,41 @@ async function autoApprove(machine, target, mState, preferredTerminalApp = "") {
     result = await sendKeystroke(machine, false, effectiveTarget, preferredTerminalApp);
   }
 
+  const signalMeta = buildWatchdogSignal(target, preferredTerminalApp);
+  const logAt = new Date().toISOString();
+
   if (result.ok) {
     if (target === "claude" || target === "terminal_claude") mState.claudeCount++;
     else if (target === "codex" || target === "terminal_codex") mState.codexCount++;
-    mState.lastApproval = new Date().toISOString();
+    mState.lastApproval = logAt;
     mState.lastTarget = target;
 
     watchdogState.log.push({
       machine: machine.name,
       machineId: machine.id,
       target,
+      summary: signalMeta.summary,
+      status: "auto-approved",
       at: mState.lastApproval
     });
     if (watchdogState.log.length > 50) watchdogState.log.shift();
 
     triggerPostApproveSnapshot(machine);
+    return { ok: true, skipped: false };
   }
+
+  watchdogState.log.push({
+    machine: machine.name,
+    machineId: machine.id,
+    target,
+    summary: signalMeta.summary,
+    status: "pending",
+    at: logAt,
+    error: result.error || null
+  });
+  if (watchdogState.log.length > 50) watchdogState.log.shift();
+
+  return { ok: false, skipped: false, error: result.error || null };
 }
 
 export function startWatchdog() {

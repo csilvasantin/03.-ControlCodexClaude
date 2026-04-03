@@ -4,6 +4,7 @@ const onboardingAllBtn = document.querySelector("#onboardingAllBtn");
 const sendAllTarget = document.querySelector("#sendAllTarget");
 const feedback = document.querySelector("#feedback");
 const historyList = document.querySelector("#historyList");
+const watchdogOverview = document.querySelector("#watchdogOverview");
 
 let machines = [];
 let isStaticMode = false;
@@ -20,6 +21,7 @@ const GROUP_LABELS = {
   worker: "Equipo"
 };
 const LIVE_PREVIEW_WINDOW_MS = 10 * 60 * 1000;
+const WATCHDOG_SIGNAL_WINDOW_MS = 2 * 60 * 1000;
 const SNAPSHOT_REFRESH_MS = 15_000;
 const MACHINE_REFRESH_MS = 30_000;
 const WATCHDOG_REFRESH_MS = 15_000;
@@ -419,6 +421,94 @@ function getChannelMeta(machine, remoteReady) {
   return { label: "offline", tone: "off", title: "Equipo sin conexion remota disponible." };
 }
 
+function parseWatchdogTimestamp(iso) {
+  const value = new Date(iso || "").getTime();
+  return Number.isFinite(value) ? value : 0;
+}
+
+function isRecentWatchdogSignal(iso) {
+  const value = parseWatchdogTimestamp(iso);
+  return value > 0 && (Date.now() - value) <= WATCHDOG_SIGNAL_WINDOW_MS;
+}
+
+function getWatchdogSignalTone(status) {
+  if (status === "pending") return "pending";
+  if (status === "cooldown") return "cooldown";
+  return "auto-approved";
+}
+
+function formatWatchdogSignalStatus(status) {
+  if (status === "pending") return "esperando";
+  if (status === "cooldown") return "reaccionando";
+  return "autoaprobado";
+}
+
+function getMachineWatchdogSignals(machineId) {
+  const stats = watchdogStats?.[machineId];
+  if (!stats) return [];
+
+  const signals = Array.isArray(stats.currentSignals)
+    ? stats.currentSignals.filter((signal) => signal && signal.summary)
+    : [];
+
+  if (signals.length > 0) {
+    return [...signals].sort((a, b) => {
+      const priority = (signal) => ({
+        pending: 3,
+        cooldown: 2,
+        "auto-approved": 1
+      }[signal?.status] || 0);
+      return (
+        priority(b) - priority(a) ||
+        parseWatchdogTimestamp(b.detectedAt || b.resolvedAt) - parseWatchdogTimestamp(a.detectedAt || a.resolvedAt)
+      );
+    });
+  }
+
+  if (isRecentWatchdogSignal(stats.lastDetectionAt) && stats.lastDetectionSummary) {
+    return [{
+      target: stats.lastDetectionTarget || "auto",
+      label: stats.lastDetectionLabel || stats.lastDetectionSummary,
+      source: stats.lastDetectionSource || "",
+      summary: stats.lastDetectionSummary,
+      status: stats.lastDetectionStatus || "pending",
+      detectedAt: stats.lastDetectionAt,
+      resolvedAt: stats.lastResolutionAt || stats.lastApproval || stats.lastDetectionAt
+    }];
+  }
+
+  return [];
+}
+
+function getMachineWatchdogPriority(machineId) {
+  const signals = getMachineWatchdogSignals(machineId);
+  if (signals.some((signal) => signal.status === "pending")) return 4;
+  if (signals.some((signal) => signal.status === "cooldown")) return 3;
+  if (signals.some((signal) => signal.status === "auto-approved")) return 2;
+  const stats = watchdogStats?.[machineId];
+  const totalApprovals = (stats?.claudeCount || 0) + (stats?.codexCount || 0);
+  return totalApprovals > 0 ? 1 : 0;
+}
+
+function renderMachineWatchdogSignals(machineId) {
+  const signals = getMachineWatchdogSignals(machineId);
+  if (!signals.length) return "";
+
+  const chips = signals.slice(0, 2).map((signal) => {
+    const status = formatWatchdogSignalStatus(signal.status);
+    const tone = getWatchdogSignalTone(signal.status);
+    const time = formatTime(signal.resolvedAt || signal.detectedAt);
+    const title = `${signal.summary} · ${status}${time ? ` · ${time}` : ""}`;
+    return `<span class="tw-watchdog-chip ${tone}" title="${escapeHtml(title)}"><span class="tw-watchdog-chip-label">${escapeHtml(status)} · ${escapeHtml(signal.summary)}</span>${time ? `<span class="tw-watchdog-chip-time">${escapeHtml(time)}</span>` : ""}</span>`;
+  }).join("");
+
+  const extra = signals.length > 2
+    ? `<span class="tw-watchdog-chip" title="${signals.length - 2} detecciones adicionales">+${signals.length - 2}</span>`
+    : "";
+
+  return `<div class="tw-machine-watchdog" data-watchdog-signals="${machineId}">${chips}${extra}</div>`;
+}
+
 function renderMonitorContent(machine, snap) {
   const multiLabels = ["Claude", "Studio", "Codex"];
 
@@ -454,6 +544,7 @@ function renderMonitorContent(machine, snap) {
 
 function getMachineSortScore(machine, snapshots) {
   const snap = snapshots?.[machine.id];
+  const watchdogRank = getMachineWatchdogPriority(machine.id);
   const statusRank = {
     online: 4,
     busy: 3,
@@ -469,6 +560,7 @@ function getMachineSortScore(machine, snapshots) {
   const updatedAtRank = Number.isFinite(new Date(snap?.updatedAt || "").getTime()) ? new Date(snap.updatedAt).getTime() : 0;
 
   return (
+    (watchdogRank * 100_000_000_000_000) +
     (visualLiveRank * 1_000_000_000_000) +
     (statusRank * 10_000_000_000) +
     (remoteRank * 1_000_000_000) +
@@ -512,6 +604,7 @@ function renderMachineRow(m, snapshots) {
           ${snap?.claudeState ? `<span class="tw-app-tag claude" title="Claude: ${snap.claudeState}">C</span>` : ""}
           ${snap?.codexState ? `<span class="tw-app-tag codex" title="Codex: ${snap.codexState}">X</span>` : ""}
         </span>
+        ${renderMachineWatchdogSignals(m.id)}
       </div>
       <input class="tw-machine-input" data-machine="${m.id}" type="text" placeholder="Prompt para ${m.member}..." ${remoteReady ? "" : "disabled"}>
       <select class="tw-approve-sm" data-machine-target="${m.id}" style="background:var(--panel);color:var(--ink);border:1px solid var(--line);padding:8px 6px;font-size:11px;border-radius:10px;">
@@ -657,6 +750,9 @@ function renderMachineApproveList(snapshots) {
       }
     });
   });
+
+  updateWatchdogRows();
+  renderWatchdogOverview();
 }
 
 // Approve buttons
@@ -775,6 +871,8 @@ function updateSnapshotsInPlace(snapshots) {
     const orderChanged = rows.some((r, i) => r !== sorted[i]);
     if (orderChanged) sorted.forEach((row) => panel.appendChild(row));
   }
+
+  updateWatchdogRows();
 }
 
 async function loadSnapshots() {
@@ -812,6 +910,7 @@ async function loadSnapshots() {
 const watchdogToggle = document.querySelector("#watchdogToggle");
 const watchdogPulse = document.querySelector("#watchdogPulse");
 let watchdogStats = {};
+let watchdogLog = [];
 
 watchdogToggle.addEventListener("change", async () => {
   const enabled = watchdogToggle.checked;
@@ -833,9 +932,102 @@ async function loadWatchdogStats() {
       watchdogToggle.checked = data.enabled;
       watchdogPulse.classList.toggle("off", !data.enabled);
       watchdogStats = data.perMachine || {};
-      updateWatchdogBadges();
+      watchdogLog = Array.isArray(data.log) ? data.log : [];
+      updateWatchdogUI();
     }
   } catch { /* ignore */ }
+}
+
+function renderWatchdogOverview() {
+  if (!watchdogOverview) return;
+
+  const councilMachines = machines.filter((machine) => (machine.unitType || "council") === "council");
+  const waiting = [];
+  const recent = [];
+
+  for (const machine of councilMachines) {
+    for (const signal of getMachineWatchdogSignals(machine.id)) {
+      const entry = { machine, signal };
+      if (signal.status === "pending" || signal.status === "cooldown") waiting.push(entry);
+      else recent.push(entry);
+    }
+  }
+
+  waiting.sort((a, b) => parseWatchdogTimestamp(b.signal.detectedAt) - parseWatchdogTimestamp(a.signal.detectedAt));
+  recent.sort((a, b) => parseWatchdogTimestamp(b.signal.resolvedAt || b.signal.detectedAt) - parseWatchdogTimestamp(a.signal.resolvedAt || a.signal.detectedAt));
+
+  if (waiting.length > 0) {
+    watchdogOverview.className = "tw-watchdog-overview hot";
+    watchdogOverview.innerHTML = `
+      <div class="tw-watchdog-overview-title">
+        <span>Consejo atento</span>
+        <span class="tw-watchdog-overview-meta">${waiting.length} esperando reaccion</span>
+      </div>
+      <div class="tw-watchdog-overview-body">
+        ${waiting.slice(0, 4).map(({ machine, signal }) => `<span class="tw-watchdog-chip pending" title="${escapeHtml(`${machine.name} · ${signal.summary}`)}"><span class="tw-watchdog-chip-label">${escapeHtml(machine.member || machine.name)} · ${escapeHtml(signal.summary)}</span><span class="tw-watchdog-chip-time">${escapeHtml(formatTime(signal.detectedAt))}</span></span>`).join("")}
+      </div>
+    `;
+    return;
+  }
+
+  if (recent.length > 0) {
+    watchdogOverview.className = "tw-watchdog-overview recent";
+    watchdogOverview.innerHTML = `
+      <div class="tw-watchdog-overview-title">
+        <span>Ultima reaccion del Consejo</span>
+        <span class="tw-watchdog-overview-meta">${recent.length} recientes</span>
+      </div>
+      <div class="tw-watchdog-overview-body">
+        ${recent.slice(0, 4).map(({ machine, signal }) => `<span class="tw-watchdog-chip auto-approved" title="${escapeHtml(`${machine.name} · ${signal.summary}`)}"><span class="tw-watchdog-chip-label">${escapeHtml(machine.member || machine.name)} · ${escapeHtml(signal.summary)}</span><span class="tw-watchdog-chip-time">${escapeHtml(formatTime(signal.resolvedAt || signal.detectedAt))}</span></span>`).join("")}
+      </div>
+    `;
+    return;
+  }
+
+  const latestLog = watchdogLog.length ? watchdogLog[watchdogLog.length - 1] : null;
+  watchdogOverview.className = "tw-watchdog-overview";
+  watchdogOverview.innerHTML = `
+    <div class="tw-watchdog-overview-title">
+      <span>Consejo atento</span>
+      <span class="tw-watchdog-overview-meta">${watchdogToggle.checked ? "watchdog activo" : "watchdog pausado"}</span>
+    </div>
+    <div class="tw-watchdog-overview-empty">${latestLog ? `Sin esperas ahora. Ultima autoaprobacion: ${escapeHtml(latestLog.machine)} · ${escapeHtml(latestLog.summary || latestLog.target || "Aprobacion")} · ${escapeHtml(formatTime(latestLog.at))}` : "Sin señales recientes de aprobacion en el Consejo."}</div>
+  `;
+}
+
+function updateWatchdogRows() {
+  document.querySelectorAll(".tw-machine-row").forEach((row) => {
+    const machineId = row.dataset.id;
+    const signalMarkup = renderMachineWatchdogSignals(machineId);
+    const signalEl = row.querySelector(`[data-watchdog-signals="${machineId}"]`);
+    if (signalMarkup) {
+      if (signalEl) signalEl.outerHTML = signalMarkup;
+      else row.querySelector(".tw-machine-label")?.insertAdjacentHTML("beforeend", signalMarkup);
+    } else if (signalEl) {
+      signalEl.remove();
+    }
+
+    const signals = getMachineWatchdogSignals(machineId);
+    const hasWaiting = signals.some((signal) => signal.status === "pending" || signal.status === "cooldown");
+    const hasRecent = !hasWaiting && signals.length > 0;
+    row.classList.toggle("tw-machine-row-alert", hasWaiting);
+    row.classList.toggle("tw-machine-row-recent", hasRecent);
+  });
+}
+
+function resortMachineRows() {
+  for (const group of ["council", "worker"]) {
+    const panel = machineApproveList.querySelector(`[data-group-panel="${group}"]`);
+    if (!panel) continue;
+    const rows = [...panel.querySelectorAll(".tw-machine-row")];
+    const sorted = [...rows].sort((a, b) => {
+      const aMachine = machines.find((machine) => machine.id === a.dataset.id);
+      const bMachine = machines.find((machine) => machine.id === b.dataset.id);
+      return compareMachinesForDisplay(aMachine, bMachine, latestSnapshots);
+    });
+    const orderChanged = rows.some((row, index) => row !== sorted[index]);
+    if (orderChanged) sorted.forEach((row) => panel.appendChild(row));
+  }
 }
 
 function updateWatchdogBadges() {
@@ -845,9 +1037,16 @@ function updateWatchdogBadges() {
     const stats = watchdogStats[machineId];
     if (stats) {
       const total = (stats.claudeCount || 0) + (stats.codexCount || 0);
-      if (total > 0) {
+      const signals = getMachineWatchdogSignals(machineId);
+      const waiting = signals.filter((signal) => signal.status === "pending" || signal.status === "cooldown");
+      badge.classList.toggle("tw-auto-badge-live", waiting.length > 0);
+      if (waiting.length > 0) {
+        badge.textContent = `⚠ ${waiting.length}`;
+        badge.title = waiting.map((signal) => `${signal.summary} · ${formatWatchdogSignalStatus(signal.status)}`).join(" | ");
+        badge.classList.add("has-approvals");
+      } else if (total > 0) {
         badge.textContent = `🤖 ${total}`;
-        badge.title = `Claude: ${stats.claudeCount || 0} | Codex: ${stats.codexCount || 0}`;
+        badge.title = `Claude: ${stats.claudeCount || 0} | Codex: ${stats.codexCount || 0}${stats.lastDetectionSummary ? ` | Ultima: ${stats.lastDetectionSummary}` : ""}`;
         badge.classList.add("has-approvals");
       } else {
         badge.textContent = "🤖 0";
@@ -856,6 +1055,13 @@ function updateWatchdogBadges() {
       }
     }
   });
+}
+
+function updateWatchdogUI() {
+  updateWatchdogBadges();
+  updateWatchdogRows();
+  renderWatchdogOverview();
+  resortMachineRows();
 }
 
 // ─── Init ──────────────────────────────────────────────────────────
