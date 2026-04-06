@@ -913,13 +913,20 @@ export async function refreshAllSnapshots() {
         captureAllAppsState(machine)
       ]);
 
-      if (!snap && !appsRaw && !isLocalMachine(machine)) {
+      const reachable = snap || (appsRaw && appsRaw.trim());
+      if (!reachable && !isLocalMachine(machine)) {
         markMachineFailed(machine.id);
-        if (machine.status !== "offline") updateMachineStatus(machine.id, "offline").catch(() => {});
+        if (machine.status !== "offline") {
+          console.log(`[status] ${machine.id} → offline`);
+          updateMachineStatus(machine.id, "offline").catch((e) => console.error(`[status] error offline ${machine.id}:`, e));
+        }
         return;
       }
       markMachineOnline(machine.id);
-      if (machine.status === "offline") updateMachineStatus(machine.id, "online").catch(() => {});
+      if (machine.status === "offline") {
+        console.log(`[status] ${machine.id} → online`);
+        updateMachineStatus(machine.id, "online").catch((e) => console.error(`[status] error online ${machine.id}:`, e));
+      }
 
       const apps = parseAppsState(appsRaw);
       const existing = machineSnapshots.get(machine.id) || {};
