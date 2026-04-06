@@ -5,17 +5,90 @@ const historyList = document.querySelector("#historyList");
 
 let machines = [];
 let isStaticMode = false;
-const FUNNEL_URL = "https://macmini.tail48b61c.ts.net";
+const DEFAULT_FUNNEL_URL = "https://macmini.tail48b61c.ts.net";
 const FUNNEL_HOST = "macmini.tail48b61c.ts.net";
+const API_OVERRIDE_PARAM = new URLSearchParams(location.search).get("api");
+const API_OVERRIDE_STORAGE_KEY = "admiranextTeam.apiBase";
 const isLocal = location.hostname === "localhost" || location.hostname === "127.0.0.1" || location.hostname === FUNNEL_HOST;
+let apiBase = "";
+let apiReady = false;
+const LOCAL_API_CANDIDATES = ["http://127.0.0.1:4140", "http://localhost:4140", "http://127.0.0.1:3030", "http://localhost:3030"];
 
-// Redirect GitHub Pages to Funnel
-if (location.hostname === "csilvasantin.github.io") {
-  location.href = FUNNEL_URL + "/teamwork.html";
+function normalizeBase(base) {
+  if (!base) return "";
+  return String(base).trim().replace(/\/+$/, "");
+}
+
+function readConfiguredApiBase() {
+  const override =
+    API_OVERRIDE_PARAM ||
+    localStorage.getItem(API_OVERRIDE_STORAGE_KEY) ||
+    window.TEAMWORK_API_BASE ||
+    "";
+  const normalized = normalizeBase(override);
+  if (API_OVERRIDE_PARAM && normalized) {
+    localStorage.setItem(API_OVERRIDE_STORAGE_KEY, normalized);
+  }
+  return normalized;
+}
+
+function buildApiCandidates() {
+  const configured = readConfiguredApiBase();
+  const candidates = [];
+  const seen = new Set();
+
+  function push(base) {
+    const normalized = normalizeBase(base);
+    if (seen.has(normalized)) return;
+    seen.add(normalized);
+    candidates.push(normalized);
+  }
+
+  if (configured) push(configured);
+  if (isLocal) push("");
+  if (!isLocal) {
+    for (const localBase of LOCAL_API_CANDIDATES) push(localBase);
+  }
+  if (location.origin && !location.origin.startsWith("file://")) push(location.origin);
+  push(DEFAULT_FUNNEL_URL);
+  if (!isLocal) push("");
+
+  return candidates;
+}
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = 3500) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function resolveApiBase() {
+  const candidates = buildApiCandidates();
+  for (const candidate of candidates) {
+    const probeUrl = `${candidate || ""}/api/machines`;
+    try {
+      const res = await fetchWithTimeout(probeUrl, { cache: "no-store" });
+      if (res.ok) {
+        apiBase = candidate;
+        apiReady = true;
+        return candidate;
+      }
+    } catch {
+      // try next candidate
+    }
+  }
+
+  apiBase = "";
+  apiReady = false;
+  return null;
 }
 
 function apiUrl(path) {
-  return isLocal ? path : `${FUNNEL_URL}${path}`;
+  return `${apiBase || ""}${path}`;
 }
 
 function showFeedback(text, ok) {
@@ -72,6 +145,11 @@ function parseQuickInput(text) {
 const sendAllTarget = document.querySelector("#sendAllTarget");
 
 async function sendToAll(prompt) {
+  if (!apiReady) {
+    showFeedback("No hay conexion con la API remota. El panel queda en solo lectura.", false);
+    return;
+  }
+
   sendAllBtn.disabled = true;
   sendAllBtn.textContent = "Enviando...";
   const target = sendAllTarget.value;
@@ -124,6 +202,8 @@ function renderHistory(entries) {
 }
 
 async function loadCapture(captureId) {
+  if (!apiReady) return;
+
   const el = document.querySelector(`#capture-${captureId}`);
   if (!el || el.dataset.loaded === "true") return;
 
@@ -146,6 +226,8 @@ async function loadCapture(captureId) {
 }
 
 async function loadHistory() {
+  if (!apiReady) return;
+
   try {
     const res = await fetch(apiUrl("/api/teamwork/history"), { cache: "no-store" });
     const data = await res.json();
@@ -156,12 +238,17 @@ async function loadHistory() {
 }
 
 async function loadMachines() {
+  await resolveApiBase();
+
   try {
+    if (!apiReady) throw new Error("api unavailable");
     const res = await fetch(apiUrl("/api/machines"), { cache: "no-store" });
     if (!res.ok) throw new Error("api unavailable");
     const data = await res.json();
     machines = data.machines.filter((m) => m.ssh?.enabled);
     isStaticMode = false;
+    sendAllBtn.disabled = false;
+    sendAllBtn.textContent = "Enviar a todos";
     renderMachineApproveList(null);
   } catch {
     try {
@@ -169,11 +256,13 @@ async function loadMachines() {
       const data = await res.json();
       machines = data.machines.filter((m) => m.ssh?.enabled);
       isStaticMode = true;
+      apiReady = false;
       renderMachineApproveList(null);
       sendAllBtn.textContent = "Solo lectura";
       sendAllBtn.disabled = true;
+      showFeedback("API remota no disponible. Se ha cargado el modo solo lectura con datos estaticos.", false);
     } catch {
-      // no machines
+      showFeedback("No se pudo cargar ni la API ni el fallback estatico.", false);
     }
   }
 }
@@ -250,6 +339,10 @@ function renderMachineApproveList(snapshots) {
       const targetSel = machineApproveList.querySelector(`select[data-machine-target="${machineId}"]`);
       const prompt = input?.value.trim();
       if (!prompt) return;
+      if (!apiReady) {
+        showFeedback("No hay conexion con la API remota. El envio esta desactivado.", false);
+        return;
+      }
 
       btn.disabled = true;
       btn.textContent = "...";
@@ -278,6 +371,10 @@ function renderMachineApproveList(snapshots) {
       const machineId = btn.dataset.machineApprove;
       const targetSel = machineApproveList.querySelector(`select[data-machine-target="${machineId}"]`);
       const target = targetSel?.value || "claude";
+      if (!apiReady) {
+        showFeedback("No hay conexion con la API remota. La aprobacion no esta disponible.", false);
+        return;
+      }
       btn.disabled = true;
       btn.textContent = "⏳";
 
@@ -336,6 +433,12 @@ const approveClaudeResult = document.querySelector("#approveClaudeResult");
 const approveCodexResult = document.querySelector("#approveCodexResult");
 
 async function approveAll(target, btn, resultEl) {
+  if (!apiReady) {
+    resultEl.textContent = "API remota no disponible.";
+    resultEl.classList.add("tw-approve-error");
+    return;
+  }
+
   btn.disabled = true;
   btn.textContent = "Aprobando...";
   resultEl.textContent = "";
@@ -405,7 +508,7 @@ function updateSnapshotsInPlace(snapshots) {
     if (!row) return renderMachineApproveList(snapshots); // first render
     const mon = row.querySelector(".tw-machine-monitor");
     const snap = snapshots?.[m.id];
-    const multiLabels = ["Studio", "Claude", "Codex"];
+    const multiLabels = ["Claude", "Studio", "Codex"];
     if (snap && snap.type === "images") {
       const t = Date.now();
       const imgs = mon.querySelectorAll(".tw-multi-screen img");
@@ -443,6 +546,8 @@ function updateSnapshotsInPlace(snapshots) {
       }
     } else if (snap && snap.text) {
       mon.innerHTML = `<pre>${snap.text.replace(/</g, "&lt;")}</pre><span class="tw-machine-monitor-time">${formatTimeShort(snap.updatedAt)}</span>`;
+    } else if (!snap) {
+      mon.innerHTML = `<div class="tw-machine-monitor-empty">Sin señal</div>`;
     }
     // Update app badges
     const statusEl = row.querySelector(".tw-app-status");
@@ -461,6 +566,8 @@ function updateSnapshotsInPlace(snapshots) {
 }
 
 async function loadSnapshots() {
+  if (!apiReady) return;
+
   try {
     const res = await fetch(apiUrl("/api/teamwork/snapshots"), { cache: "no-store" });
     const data = await res.json();
@@ -486,6 +593,7 @@ let watchdogStats = {};
 watchdogToggle.addEventListener("change", async () => {
   const enabled = watchdogToggle.checked;
   watchdogPulse.classList.toggle("off", !enabled);
+  if (!apiReady) return;
   try {
     await fetch(apiUrl("/api/teamwork/watchdog"), {
       method: "POST",
@@ -496,6 +604,8 @@ watchdogToggle.addEventListener("change", async () => {
 });
 
 async function loadWatchdogStats() {
+  if (!apiReady) return;
+
   try {
     const res = await fetch(apiUrl("/api/teamwork/watchdog"), { cache: "no-store" });
     const data = await res.json();

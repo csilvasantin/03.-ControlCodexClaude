@@ -2,6 +2,89 @@ const summaryNode = document.querySelector("#summary");
 const machinesNode = document.querySelector("#machines");
 const template = document.querySelector("#machine-template");
 let isStaticMode = false;
+const API_OVERRIDE_PARAM = new URLSearchParams(location.search).get("api");
+const API_OVERRIDE_STORAGE_KEY = "admiranextTeam.apiBase";
+const DEFAULT_FUNNEL_URL = "https://macmini.tail48b61c.ts.net";
+const FUNNEL_HOST = "macmini.tail48b61c.ts.net";
+const isLocal = location.hostname === "localhost" || location.hostname === "127.0.0.1" || location.hostname === FUNNEL_HOST;
+const LOCAL_API_CANDIDATES = ["http://127.0.0.1:4140", "http://localhost:4140", "http://127.0.0.1:3030", "http://localhost:3030"];
+let apiBase = "";
+
+function normalizeBase(base) {
+  if (!base) return "";
+  return String(base).trim().replace(/\/+$/, "");
+}
+
+function readConfiguredApiBase() {
+  const override =
+    API_OVERRIDE_PARAM ||
+    localStorage.getItem(API_OVERRIDE_STORAGE_KEY) ||
+    window.TEAMWORK_API_BASE ||
+    "";
+  const normalized = normalizeBase(override);
+  if (API_OVERRIDE_PARAM && normalized) {
+    localStorage.setItem(API_OVERRIDE_STORAGE_KEY, normalized);
+  }
+  return normalized;
+}
+
+function buildApiCandidates() {
+  const configured = readConfiguredApiBase();
+  const candidates = [];
+  const seen = new Set();
+
+  function push(base) {
+    const normalized = normalizeBase(base);
+    if (seen.has(normalized)) return;
+    seen.add(normalized);
+    candidates.push(normalized);
+  }
+
+  if (configured) push(configured);
+  if (isLocal) push("");
+  if (!isLocal) {
+    for (const localBase of LOCAL_API_CANDIDATES) push(localBase);
+  }
+  if (location.origin && !location.origin.startsWith("file://")) push(location.origin);
+  push(DEFAULT_FUNNEL_URL);
+  if (!isLocal) push("");
+
+  return candidates;
+}
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = 3500) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function resolveApiBase() {
+  const candidates = buildApiCandidates();
+  for (const candidate of candidates) {
+    const probeUrl = `${candidate || ""}/api/machines`;
+    try {
+      const response = await fetchWithTimeout(probeUrl, { cache: "no-store" });
+      if (response.ok) {
+        apiBase = candidate;
+        isStaticMode = false;
+        return candidate;
+      }
+    } catch {
+      // try next candidate
+    }
+  }
+
+  apiBase = "";
+  return null;
+}
+
+function apiUrl(path) {
+  return `${apiBase || ""}${path}`;
+}
 
 function formatDate(value) {
   try {
@@ -37,7 +120,7 @@ async function syncMachine(id, status, note, currentFocus) {
     return;
   }
 
-  await fetch(`/api/machines/${id}/sync`, {
+  await fetch(apiUrl(`/api/machines/${id}/sync`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ status, note, currentFocus })
@@ -98,8 +181,12 @@ function renderMachines(data) {
 }
 
 async function fetchData() {
+  await resolveApiBase();
   try {
-    const response = await fetch("/api/machines", { cache: "no-store" });
+    if (!apiBase && !isLocal) {
+      throw new Error("api unavailable");
+    }
+    const response = await fetch(apiUrl("/api/machines"), { cache: "no-store" });
     if (!response.ok) {
       throw new Error("api unavailable");
     }
