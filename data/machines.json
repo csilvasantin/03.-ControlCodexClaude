@@ -303,16 +303,16 @@
       "machineRole": "Direccion creativa",
       "location": "Madrid",
       "platform": "macOS",
-      "status": "offline",
-      "lastSeen": "2026-04-07T12:00:00Z",
-      "currentFocus": "Pendiente de onboarding — recien dado de alta",
-      "note": "Tailscale: macbookproazul.tail48b61c.ts.net — Pendiente de verificar conexion SSH y Tailscale",
+      "status": "online",
+      "lastSeen": "2026-04-07T12:30:00Z",
+      "currentFocus": "Tailscale CLI conectado — operativo",
+      "note": "Mismo hardware que MacBookAirLuna. Tailscale CLI: macbookairluna-1 (100.71.252.58). Tailscale app: macbookairluna (100.98.68.63). gh CLI y SSH configurados.",
       "ssh": {
-        "enabled": false,
+        "enabled": true,
         "user": "csilvasantin",
-        "host": "macbookproazul.tail48b61c.ts.net",
-        "ip_tailscale": "",
-        "connect_tailscale": ""
+        "host": "macbookairluna-1.tail48b61c.ts.net",
+        "ip_tailscale": "100.71.252.58",
+        "connect_tailscale": "ssh csilvasantin@100.71.252.58"
       }
     }
   ]
