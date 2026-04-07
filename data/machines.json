@@ -1,6 +1,6 @@
 {
   "team": "AdmiraNext Team",
-  "updatedAt": "2026-03-31T20:35:00Z",
+  "updatedAt": "2026-04-07T12:00:00Z",
   "tailnet": "tail48b61c.ts.net",
   "machines": [
     {
@@ -290,6 +290,28 @@
         "enabled": true,
         "channel": "windows-local",
         "mode": "desktop-sendkeys"
+      }
+    },
+    {
+      "id": "admira-macbookproazul",
+      "unitType": "council",
+      "color": "azul",
+      "member": "Walt Disney",
+      "role": "CCO (Chief Creative Officer)",
+      "name": "MacBook Pro Azul (Walt Disney)",
+      "machineRole": "Direccion creativa",
+      "location": "Madrid",
+      "platform": "macOS",
+      "status": "offline",
+      "lastSeen": "2026-04-07T12:00:00Z",
+      "currentFocus": "Pendiente de onboarding — recien dado de alta",
+      "note": "Tailscale: macbookproazul.tail48b61c.ts.net — Pendiente de verificar conexion SSH y Tailscale",
+      "ssh": {
+        "enabled": false,
+        "user": "csilvasantin",
+        "host": "macbookproazul.tail48b61c.ts.net",
+        "ip_tailscale": "",
+        "connect_tailscale": ""
       }
     }
   ]
