@@ -35,6 +35,18 @@ CACHE_TTL = 5  # segundos
 # These override Tailscale status until cleared or server restarts
 status_overrides = {}
 
+# MAC addresses for Wake on LAN (en0 interface)
+WOL_MACS = {
+    "admira-macbookair16":     "fe:e3:3e:4d:b6:70",
+    "admira-macbookairplata":  "c6:87:57:bd:78:74",
+    "admira-macbook-carla":    "b2:ad:f6:de:d7:0e",
+    "admira-macbookairazul":   "a6:57:10:7e:31:dc",
+    "admira-macmini":          "",  # TODO: obtener MAC
+    "admira-macbookpronegro14":"",  # TODO: obtener MAC
+    "admira-macbookairluna":   "",  # TODO: obtener MAC
+    "admira-macbookairblanco": "",  # TODO: obtener MAC
+}
+
 TAILSCALE_TO_ID = {
     "macmini":              "admira-macmini",
     "macbookaircrema":      "admira-macbook-carla",
@@ -91,6 +103,58 @@ def build_response():
             m["status"] = status_overrides[mid]
 
     return data
+
+
+def send_wol(mac_address):
+    """Envia un Wake-on-LAN magic packet por broadcast."""
+    import socket, struct
+    mac_bytes = bytes.fromhex(mac_address.replace(":", ""))
+    magic = b"\xff" * 6 + mac_bytes * 16
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    sock.sendto(magic, ("255.255.255.255", 9))
+    sock.sendto(magic, ("255.255.255.255", 7))
+    sock.close()
+
+
+def sleep_machine(machine_id):
+    """SSH al Mac y ejecuta pmset sleepnow."""
+    ip = get_machine_ip(machine_id)
+    if not ip:
+        return False, "Sin IP"
+    ssh_cmd = [
+        "ssh", "-o", "ConnectTimeout=3", "-o", "StrictHostKeyChecking=no",
+        "-o", "BatchMode=yes", "-i", SSH_KEY,
+        f"{SSH_USER}@{ip}",
+        "pmset sleepnow"
+    ]
+    try:
+        result = subprocess.run(ssh_cmd, capture_output=True, text=True, timeout=8)
+        if result.returncode == 0:
+            status_overrides[machine_id] = "offline"
+            print(f"[POWER] {machine_id}: sleep OK")
+            return True, "Sleep enviado"
+        else:
+            print(f"[POWER] {machine_id}: sleep failed - {result.stderr[:100]}")
+            return False, result.stderr[:100]
+    except Exception as e:
+        print(f"[POWER] {machine_id}: sleep error - {e}")
+        return False, str(e)
+
+
+def wake_machine(machine_id):
+    """Envia WoL magic packet para despertar el Mac."""
+    mac = WOL_MACS.get(machine_id, "")
+    if not mac:
+        return False, "Sin MAC address"
+    try:
+        send_wol(mac)
+        status_overrides.pop(machine_id, None)  # Limpia override para que Tailscale detecte
+        print(f"[POWER] {machine_id}: WoL enviado a {mac}")
+        return True, f"WoL enviado a {mac}"
+    except Exception as e:
+        print(f"[POWER] {machine_id}: WoL error - {e}")
+        return False, str(e)
 
 
 def get_machine_ip(machine_id):
@@ -218,6 +282,24 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             self.write(json.dumps({"ok": True, "machine": machine_id, "status": new_status}).encode())
+        elif self.path.startswith("/power/"):
+            machine_id = self.path.split("/power/")[1].split("?")[0]
+            length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(length)) if length else {}
+            action = body.get("action", "")
+
+            if action == "sleep":
+                ok, msg = sleep_machine(machine_id)
+            elif action == "wake":
+                ok, msg = wake_machine(machine_id)
+            else:
+                ok, msg = False, "Accion no valida (usa sleep o wake)"
+
+            self.send_response(200 if ok else 400)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.write(json.dumps({"ok": ok, "machine": machine_id, "action": action, "message": msg}).encode())
         else:
             self.send_response(404)
             self.end_headers()
