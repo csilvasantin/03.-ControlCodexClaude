@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { extname, resolve } from "node:path";
 
 import { createMachineEntry, readMachines, updateMachineStatus, updateMachineSync } from "./store.js";
-import { sendPromptToMachine, resolveMachineName, getCapture, getImageBuffer, approveAll, approveMachine, getAllSnapshots, getReachableMachines, getWatchdogState, setWatchdogEnabled, setMachineWatchdog, sendOnboardingToAll, startWatchdog } from "./ssh-exec.js";
+import { sendPromptToMachine, resolveMachineName, getCapture, getImageBuffer, approveAll, approveMachine, getAllSnapshots, getReachableMachines, getWatchdogState, setWatchdogEnabled, setMachineWatchdog, sendOnboardingToAll, startWatchdog, sleepMachine, wakeMachine } from "./ssh-exec.js";
 import { addEntry, getHistory } from "./teamwork-store.js";
 
 const PORT = 3030;
@@ -115,6 +115,35 @@ const server = createServer(async (request, response) => {
       }
       return;
     }
+  }
+
+  if (request.method === "POST" && url.pathname.startsWith("/api/machines/") && url.pathname.endsWith("/power")) {
+    const parts = url.pathname.split("/");
+    const id = parts[3];
+    const rawBody = await readRequestBody(request);
+    const parsed = rawBody ? JSON.parse(rawBody) : {};
+    const action = parsed.action;
+
+    if (action !== "sleep" && action !== "wake") {
+      sendJson(response, 400, { error: "action debe ser 'sleep' o 'wake'" });
+      return;
+    }
+
+    const data = await readMachines();
+    const machine = data.machines.find((m) => m.id === id);
+    if (!machine) {
+      sendJson(response, 404, { error: "Machine not found" });
+      return;
+    }
+
+    const result = action === "sleep" ? await sleepMachine(machine) : await wakeMachine(machine);
+
+    if (result.ok && action === "sleep") {
+      await updateMachineStatus(id, "offline", "Sleep enviado desde dashboard");
+    }
+
+    sendJson(response, result.ok ? 200 : 502, { ...result, machine: id, action });
+    return;
   }
 
   if (request.method === "POST" && url.pathname.startsWith("/api/machines/") && url.pathname.endsWith("/status")) {

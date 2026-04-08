@@ -945,6 +945,70 @@ export async function refreshAllSnapshots() {
 refreshAllSnapshots();
 setInterval(refreshAllSnapshots, 10_000);
 
+// ─── POWER CONTROL: sleep / wake ──────────────────────────────────────
+
+// MAC addresses para Wake-on-LAN (interfaz en0)
+const WOL_MACS = {
+  "admira-macbookair16":      "fe:e3:3e:4d:b6:70",
+  "admira-macbookairplata":   "c6:87:57:bd:78:74",
+  "admira-macbook-carla":     "b2:ad:f6:de:d7:0e",
+  "admira-macbookairazul":    "a6:57:10:7e:31:dc",
+  "admira-macbookairblanco":  "",
+  "admira-macbookpronegro14": "",
+  "admira-macmini":           "",
+  "admira-macbookairluna":    "",
+};
+
+function sendWol(macAddress) {
+  const hexMac = macAddress.replace(/:/g, "");
+  const script = [
+    "import socket,sys",
+    "mac=bytes.fromhex(sys.argv[1])",
+    "magic=b'\\xff'*6+mac*16",
+    "s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)",
+    "s.setsockopt(socket.SOL_SOCKET,socket.SO_BROADCAST,1)",
+    "s.sendto(magic,('255.255.255.255',9))",
+    "s.sendto(magic,('255.255.255.255',7))",
+    "s.close()",
+    "print('ok')",
+  ].join(";");
+  return new Promise((resolve, reject) => {
+    execFile("python3", ["-c", script, hexMac], { timeout: 5000 }, (error) => {
+      if (error) reject(error);
+      else resolve();
+    });
+  });
+}
+
+export async function sleepMachine(machine) {
+  if (!machine.ssh?.enabled || !machine.ssh?.ip_tailscale) {
+    return { ok: false, error: "Sin SSH configurado" };
+  }
+  const sshArgs = buildSshArgs(machine, false);
+  return new Promise((resolve) => {
+    execFile("ssh", [...sshArgs, "pmset sleepnow"], { timeout: 8000 }, (error) => {
+      if (error) {
+        resolve({ ok: false, error: error.message?.slice(0, 120) || "SSH error" });
+      } else {
+        resolve({ ok: true, message: "Sleep enviado" });
+      }
+    });
+  });
+}
+
+export async function wakeMachine(machine) {
+  const mac = WOL_MACS[machine.id] || machine.wol_mac || "";
+  if (!mac) {
+    return { ok: false, error: `Sin MAC address para ${machine.id}` };
+  }
+  try {
+    await sendWol(mac);
+    return { ok: true, message: `WoL enviado a ${mac}` };
+  } catch (e) {
+    return { ok: false, error: e.message?.slice(0, 120) || "WoL error" };
+  }
+}
+
 export function resolveMachineName(machines, input) {
   const q = input.toLowerCase().replace(/[\s-_]+/g, "");
   return machines.find((m) => {
