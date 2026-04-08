@@ -953,7 +953,7 @@ const WOL_MACS = {
   "admira-macbookairplata":   "c6:87:57:bd:78:74",
   "admira-macbook-carla":     "b2:ad:f6:de:d7:0e",
   "admira-macbookairazul":    "a6:57:10:7e:31:dc",
-  "admira-macbookairblanco":  "",
+  "admira-macbookairblanco":  "f6:5e:7e:9d:9b:ca",
   "admira-macbookpronegro14": "92:a2:4f:70:35:c7",
   "admira-macmini":           "",
   "admira-macbookairluna":    "",
