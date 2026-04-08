@@ -319,22 +319,22 @@
       "id": "admira-macbookairazul",
       "unitType": "council",
       "color": "azul",
-      "member": "Walt Disney",
+      "member": "Rotatorio",
       "role": "CCO (Chief Creative Officer)",
-      "name": "MacBook Air Azul (Walt Disney)",
+      "name": "MacBook Air Azul",
       "machineRole": "Direccion creativa",
       "location": "Madrid",
       "platform": "macOS",
-      "status": "offline",
-      "lastSeen": "2026-04-08T09:19:17Z",
-      "currentFocus": "Offline — ultima conexion hace 22h ago",
-      "note": "Mismo hardware que MacBookAirLuna. Segunda instancia via Tailscale CLI: macbookairluna-1 (100.71.252.58).",
+      "status": "online",
+      "lastSeen": "2026-04-08T11:30:00Z",
+      "currentFocus": "Online — conectado al consejo",
+      "note": "Tailscale: macbookairazul (100.84.81.45)",
       "ssh": {
         "enabled": true,
         "user": "csilvasantin",
-        "host": "macbookairluna-1.tail48b61c.ts.net",
-        "ip_tailscale": "100.71.252.58",
-        "connect_tailscale": "ssh csilvasantin@100.71.252.58"
+        "host": "macbookairazul.tail48b61c.ts.net",
+        "ip_tailscale": "100.84.81.45",
+        "connect_tailscale": "ssh csilvasantin@100.84.81.45"
       }
     }
   ]

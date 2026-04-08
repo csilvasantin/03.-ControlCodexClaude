@@ -41,7 +41,6 @@ TAILSCALE_TO_ID = {
     "macbookpronegro14":    "admira-macbookpronegro14",
     "macbookair16":         "admira-macbookair16",
     "macbookairluna":       "admira-macbookairluna",
-    "macbookairluna-1":     "admira-macbookairazul",
     "macbook-air-de-carla": "admira-macbook-carla",
     "macbookairblanco":     "admira-macbookairblanco",
     "macbookairplata":      "admira-macbookairplata",
