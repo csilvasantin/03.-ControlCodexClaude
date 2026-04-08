@@ -1,21 +1,35 @@
 #!/usr/bin/env python3
 """
 demo-server.py — Servidor ligero para demos en directo.
-Expone el estado de Tailscale como JSON en http://localhost:3031/status
+
+Endpoints:
+  GET /status              — Estado Tailscale en vivo (JSON)
+  GET /screenshot/{id}     — Captura de pantalla JPEG via SSH
+  GET /ping                — Health check
+
 La pagina admiranext.html lo consulta cada 3s en modo DEMO.
 
 Uso:
   python ops/demo-server.py
 """
 
+import base64
 import json
 import re
 import subprocess
+import time
+import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 
 PORT = 3031
 MACHINES_PATH = Path(__file__).resolve().parent.parent / "data" / "machines.json"
+SSH_USER = "csilvasantin"
+SSH_KEY = str(Path.home() / ".ssh" / "admiranext_ed25519")
+
+# Cache de screenshots: {machine_id: (timestamp, jpeg_bytes)}
+screenshot_cache = {}
+CACHE_TTL = 5  # segundos
 
 TAILSCALE_TO_ID = {
     "macmini":              "admira-macmini",
@@ -71,6 +85,63 @@ def build_response():
     return data
 
 
+def get_machine_ip(machine_id):
+    """Busca la IP de Tailscale de una maquina en machines.json."""
+    try:
+        data = json.loads(MACHINES_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    for m in data.get("machines", []):
+        if m["id"] == machine_id:
+            ip = m.get("ssh", {}).get("ip_tailscale", "")
+            return ip if ip else None
+    return None
+
+
+def capture_screenshot(machine_id):
+    """SSH a un Mac y captura la pantalla. Devuelve bytes JPEG o None."""
+    # Check cache
+    cached = screenshot_cache.get(machine_id)
+    if cached and (time.time() - cached[0]) < CACHE_TTL:
+        return cached[1]
+
+    ip = get_machine_ip(machine_id)
+    if not ip:
+        return None
+
+    # SSH command: screencapture → base64 → stdout
+    ssh_cmd = [
+        "ssh",
+        "-o", "ConnectTimeout=3",
+        "-o", "StrictHostKeyChecking=no",
+        "-o", "BatchMode=yes",
+        "-i", SSH_KEY,
+        f"{SSH_USER}@{ip}",
+        "screencapture -x -t jpg /tmp/tw_demo.jpg && sips -Z 960 /tmp/tw_demo.jpg --out /tmp/tw_demo.jpg > /dev/null 2>&1; base64 /tmp/tw_demo.jpg; rm -f /tmp/tw_demo.jpg"
+    ]
+
+    try:
+        result = subprocess.run(ssh_cmd, capture_output=True, text=True, timeout=8)
+        if result.returncode != 0:
+            # Try without sips (older macOS)
+            ssh_cmd[-1] = "screencapture -x -t jpg /tmp/tw_demo.jpg && base64 /tmp/tw_demo.jpg; rm -f /tmp/tw_demo.jpg"
+            result = subprocess.run(ssh_cmd, capture_output=True, text=True, timeout=8)
+            if result.returncode != 0:
+                return None
+
+        raw = result.stdout.strip()
+        if not raw:
+            return None
+
+        jpeg_bytes = base64.b64decode(raw)
+        screenshot_cache[machine_id] = (time.time(), jpeg_bytes)
+        return jpeg_bytes
+
+    except Exception as e:
+        print(f"[SCREENSHOT] Error {machine_id}: {e}")
+        return None
+
+
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/status" or self.path.startswith("/status?"):
@@ -82,6 +153,20 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Cache-Control", "no-cache")
             self.end_headers()
             self.write(body)
+        elif self.path.startswith("/screenshot/"):
+            machine_id = self.path.split("/screenshot/")[1].split("?")[0]
+            jpeg = capture_screenshot(machine_id)
+            if jpeg:
+                self.send_response(200)
+                self.send_header("Content-Type", "image/jpeg")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Cache-Control", "no-cache")
+                self.end_headers()
+                self.write(jpeg)
+            else:
+                self.send_response(404)
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
         elif self.path == "/ping":
             self.send_response(200)
             self.send_header("Content-Type", "text/plain")
