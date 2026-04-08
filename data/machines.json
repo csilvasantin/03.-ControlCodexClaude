@@ -117,10 +117,10 @@
     {
       "id": "admira-macbook-carla",
       "unitType": "council",
-      "color": "gris",
+      "color": "crema",
       "member": "Carla",
-      "role": "Desarrollo y operaciones",
-      "name": "MacBook Air de Carla",
+      "role": "CXO (Chief Experience Officer)",
+      "name": "MacBook Air Crema",
       "machineRole": "Equipo activo",
       "location": "Madrid",
       "platform": "macOS",
