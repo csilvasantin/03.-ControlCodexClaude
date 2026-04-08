@@ -31,6 +31,10 @@ SSH_KEY = str(Path.home() / ".ssh" / "id_ed25519")
 screenshot_cache = {}
 CACHE_TTL = 5  # segundos
 
+# Status overrides from toggle buttons: {machine_id: "online"|"offline"}
+# These override Tailscale status until cleared or server restarts
+status_overrides = {}
+
 TAILSCALE_TO_ID = {
     "macmini":              "admira-macmini",
     "macbookairnines":      "admira-macbookairnines",
@@ -78,9 +82,14 @@ def build_response():
     live = get_tailscale_live()
 
     for m in data.machines if hasattr(data, 'machines') else data.get("machines", []):
-        ts_status = live.get(m["id"])
+        mid = m["id"]
+        # Apply Tailscale live status
+        ts_status = live.get(mid)
         if ts_status:
             m["status"] = ts_status
+        # Apply manual overrides (from toggle buttons)
+        if mid in status_overrides:
+            m["status"] = status_overrides[mid]
 
     return data
 
@@ -191,10 +200,33 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
 
+    def do_POST(self):
+        if self.path.startswith("/toggle/"):
+            machine_id = self.path.split("/toggle/")[1].split("?")[0]
+            length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(length)) if length else {}
+            new_status = body.get("status", "offline")
+
+            if new_status == "clear":
+                status_overrides.pop(machine_id, None)
+                print(f"[TOGGLE] {machine_id}: override cleared")
+            else:
+                status_overrides[machine_id] = new_status
+                print(f"[TOGGLE] {machine_id}: -> {new_status}")
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.write(json.dumps({"ok": True, "machine": machine_id, "status": new_status}).encode())
+        else:
+            self.send_response(404)
+            self.end_headers()
+
     def do_OPTIONS(self):
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
 
