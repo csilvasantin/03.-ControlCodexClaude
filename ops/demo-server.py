@@ -22,7 +22,7 @@ import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 
-PORT = 3031
+PORT = 3032
 MACHINES_PATH = Path(__file__).resolve().parent.parent / "data" / "machines.json"
 SSH_USER = "csilvasantin"
 SSH_KEY = str(Path.home() / ".ssh" / "id_ed25519")
