@@ -336,6 +336,7 @@ def capture_screenshot(machine_id):
 # ═══════════════════════════════════════
 
 HACK_SCRIPT = Path(__file__).resolve().parent / "hack-sim.sh"
+HACK_OPENER = Path(__file__).resolve().parent / "hack-open-terminal.sh"
 SSH_BASE = ["ssh", "-o", "ConnectTimeout=3", "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes", "-i", SSH_KEY]
 
 HACK_TARGETS = [
@@ -379,28 +380,16 @@ def _hack_launch_one(host, ip):
         except Exception as e:
             print(f"[HACK] {host} ({ip}): could not save previous app ({e}), continuing")
 
-        # Upload script
-        subprocess.run(["scp", "-q"] + SSH_BASE[1:] + [str(HACK_SCRIPT), f"{SSH_USER}@{ip}:{remote_path}"],
+        # Upload both scripts: hack-sim.sh (the effect) and hack-open-terminal.sh (the launcher)
+        remote_opener = "/tmp/hack-open-terminal.sh"
+        subprocess.run(["scp", "-q"] + SSH_BASE[1:] +
+                        [str(HACK_SCRIPT), str(HACK_OPENER), f"{SSH_USER}@{ip}:/tmp/"],
                         capture_output=True, timeout=10)
-        subprocess.run(SSH_BASE + [f"{SSH_USER}@{ip}", f"chmod +x {remote_path}"],
+        subprocess.run(SSH_BASE + [f"{SSH_USER}@{ip}", f"chmod +x {remote_path} {remote_opener}"],
                         capture_output=True, timeout=5)
 
-        # Open Terminal fullscreen with hack script
-        # Use System Events to enter native macOS fullscreen (Ctrl+Cmd+F)
-        applescript = f"""osascript -e '
-tell application "Terminal"
-    activate
-    do script "clear && bash /tmp/hack-sim.sh '\\\"'{host}'\\\"' '\\\"'{ip}'\\\"'"
-    delay 0.8
-    tell application "System Events"
-        tell process "Terminal"
-            set frontmost to true
-            delay 0.3
-            keystroke "f" using {{command down, control down}}
-        end tell
-    end tell
-end tell'"""
-        subprocess.Popen(SSH_BASE + [f"{SSH_USER}@{ip}", applescript],
+        # Execute the opener script on the remote Mac (it handles osascript + fullscreen)
+        subprocess.Popen(SSH_BASE + [f"{SSH_USER}@{ip}", f"bash {remote_opener} '{host}' '{ip}'"],
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         print(f"[HACK] {host} ({ip}): LAUNCHED")
         return host, True
