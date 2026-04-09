@@ -337,7 +337,10 @@ def capture_screenshot(machine_id):
 
 HACK_SCRIPT = Path(__file__).resolve().parent / "hack-sim.sh"
 HACK_OPENER = Path(__file__).resolve().parent / "hack-open-terminal.sh"
+HACK_MODEM  = Path(__file__).resolve().parent / "modem-sound.py"
 SSH_BASE = ["ssh", "-o", "ConnectTimeout=3", "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes", "-i", SSH_KEY]
+# SSH with pseudo-terminal — needed for osascript to interact with GUI apps
+SSH_TTY = ["ssh", "-tt", "-o", "ConnectTimeout=3", "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes", "-i", SSH_KEY]
 
 HACK_TARGETS = [
     ("MacBookAir16",       "100.99.176.126"),
@@ -366,31 +369,39 @@ def _hack_launch_one(host, ip):
             print(f"[HACK] {host} ({ip}): OFFLINE")
             return host, False
 
-        # Save current frontmost app before hijacking (best effort, don't block on failure)
+        # Save current frontmost app (best effort, 4s timeout — System Events hangs on some Macs)
         try:
+            # Use lsappinfo which doesn't need Accessibility permissions
             r = subprocess.run(
                 SSH_BASE + [f"{SSH_USER}@{ip}",
-                            "osascript -e 'tell application \"System Events\" to get name of first application process whose frontmost is true'"],
-                capture_output=True, text=True, timeout=10
+                            "lsappinfo info -only name `lsappinfo front` 2>/dev/null | sed -n 's/.*=\"\\(.*\\)\"/\\1/p'"],
+                capture_output=True, text=True, timeout=4
             )
             prev_app = r.stdout.strip() if r.returncode == 0 else ""
             if prev_app:
                 hack_previous_app[ip] = prev_app
                 print(f"[HACK] {host} ({ip}): saved previous app: {prev_app}")
+            else:
+                print(f"[HACK] {host} ({ip}): no frontmost app detected")
         except Exception as e:
             print(f"[HACK] {host} ({ip}): could not save previous app ({e}), continuing")
 
-        # Upload both scripts: hack-sim.sh (the effect) and hack-open-terminal.sh (the launcher)
+        # Upload all scripts: hack-sim.sh, hack-open-terminal.sh, modem-sound.py
         remote_opener = "/tmp/hack-open-terminal.sh"
+        files_to_upload = [str(HACK_SCRIPT), str(HACK_OPENER)]
+        if HACK_MODEM.exists():
+            files_to_upload.append(str(HACK_MODEM))
         subprocess.run(["scp", "-q"] + SSH_BASE[1:] +
-                        [str(HACK_SCRIPT), str(HACK_OPENER), f"{SSH_USER}@{ip}:/tmp/"],
+                        files_to_upload + [f"{SSH_USER}@{ip}:/tmp/"],
                         capture_output=True, timeout=10)
         subprocess.run(SSH_BASE + [f"{SSH_USER}@{ip}", f"chmod +x {remote_path} {remote_opener}"],
                         capture_output=True, timeout=5)
 
-        # Execute the opener script on the remote Mac (it handles osascript + fullscreen)
-        subprocess.Popen(SSH_BASE + [f"{SSH_USER}@{ip}", f"bash {remote_opener} '{host}' '{ip}'"],
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        # Open Terminal and run hack script on remote Mac
+        # Use the opener script (already uploaded) via ssh -tt for GUI interaction
+        subprocess.run(SSH_TTY + [f"{SSH_USER}@{ip}",
+                        f"bash {remote_opener} '{host}' '{ip}'"],
+                        capture_output=True, timeout=15)
         print(f"[HACK] {host} ({ip}): LAUNCHED")
         return host, True
     except Exception as e:
