@@ -331,6 +331,111 @@ def capture_screenshot(machine_id):
         return last_good_screenshot.get(machine_id)
 
 
+# ═══════════════════════════════════════
+# HACK MODE — launch/stop hack-sim.sh on remote Macs
+# ═══════════════════════════════════════
+
+HACK_SCRIPT = Path(__file__).resolve().parent / "hack-sim.sh"
+SSH_BASE = ["ssh", "-o", "ConnectTimeout=3", "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes", "-i", SSH_KEY]
+
+HACK_TARGETS = [
+    ("MacBookAir16",       "100.99.176.126"),
+    ("MacBookProNegro14",  "100.101.192.1"),
+    ("MacBookAirPlata",    "100.114.113.88"),
+    ("MacMini",            "100.74.101.14"),
+    ("MacBookAirBlanco",   "100.75.118.75"),
+    ("MacBookAirAzul",     "100.84.81.45"),
+    ("MacBookAirCrema",    "100.110.80.2"),
+]
+
+hack_active = False
+
+
+def _hack_launch_one(host, ip):
+    """Upload and launch hack-sim.sh on one Mac via SSH (runs in thread)."""
+    remote_path = "/tmp/hack-sim.sh"
+    try:
+        # Check reachable
+        r = subprocess.run(SSH_BASE + [f"{SSH_USER}@{ip}", "echo ok"],
+                           capture_output=True, text=True, timeout=5)
+        if r.returncode != 0:
+            print(f"[HACK] {host} ({ip}): OFFLINE")
+            return host, False
+
+        # Upload script
+        subprocess.run(["scp", "-q"] + SSH_BASE[1:] + [str(HACK_SCRIPT), f"{SSH_USER}@{ip}:{remote_path}"],
+                        capture_output=True, timeout=10)
+        subprocess.run(SSH_BASE + [f"{SSH_USER}@{ip}", f"chmod +x {remote_path}"],
+                        capture_output=True, timeout=5)
+
+        # Open Terminal fullscreen with hack script
+        applescript = f"""osascript -e '
+tell application "Terminal"
+    activate
+    do script "clear && bash /tmp/hack-sim.sh '\\\"'{host}'\\\"' '\\\"'{ip}'\\\"'"
+    delay 0.5
+    tell application "System Events"
+        tell process "Terminal"
+            set frontmost to true
+            delay 0.3
+            keystroke "f" using {{command down, control down}}
+        end tell
+    end tell
+end tell'"""
+        subprocess.Popen(SSH_BASE + [f"{SSH_USER}@{ip}", applescript],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        print(f"[HACK] {host} ({ip}): LAUNCHED")
+        return host, True
+    except Exception as e:
+        print(f"[HACK] {host} ({ip}): ERROR {e}")
+        return host, False
+
+
+def _hack_stop_one(host, ip):
+    """Kill hack-sim.sh and close Terminal on one Mac."""
+    try:
+        subprocess.run(
+            SSH_BASE + [f"{SSH_USER}@{ip}",
+                        "pkill -f hack-sim.sh 2>/dev/null; osascript -e 'tell application \"Terminal\" to quit' 2>/dev/null"],
+            capture_output=True, text=True, timeout=8
+        )
+        print(f"[HACK] {host} ({ip}): STOPPED")
+        return host, True
+    except Exception as e:
+        print(f"[HACK] {host} ({ip}): stop error {e}")
+        return host, False
+
+
+def hack_launch_all():
+    """Launch hack on all targets in parallel threads."""
+    global hack_active
+    hack_active = True
+    results = {}
+    threads = []
+    for host, ip in HACK_TARGETS:
+        t = threading.Thread(target=lambda h=host, i=ip: results.update({h: _hack_launch_one(h, i)[1]}))
+        t.start()
+        threads.append(t)
+    for t in threads:
+        t.join(timeout=20)
+    return results
+
+
+def hack_stop_all():
+    """Stop hack on all targets in parallel threads."""
+    global hack_active
+    hack_active = False
+    results = {}
+    threads = []
+    for host, ip in HACK_TARGETS:
+        t = threading.Thread(target=lambda h=host, i=ip: results.update({h: _hack_stop_one(h, i)[1]}))
+        t.start()
+        threads.append(t)
+    for t in threads:
+        t.join(timeout=15)
+    return results
+
+
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/status" or self.path.startswith("/status?"):
@@ -357,6 +462,12 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_response(404)
                 self.send_header("Access-Control-Allow-Origin", "*")
                 self.end_headers()
+        elif self.path == "/hack/status":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.write(json.dumps({"active": hack_active}).encode())
         elif self.path == "/ping":
             self.send_response(200)
             self.send_header("Content-Type", "text/plain")
@@ -386,6 +497,30 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             self.write(json.dumps({"ok": True, "machine": machine_id, "status": new_status}).encode())
+        elif self.path == "/hack":
+            # Launch hack on all machines (runs in background thread)
+            print("[HACK] Launching hack simulation on all machines...")
+            def _launch():
+                results = hack_launch_all()
+                print(f"[HACK] Results: {results}")
+            threading.Thread(target=_launch, daemon=True).start()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.write(json.dumps({"ok": True, "message": "Hack launching on all machines"}).encode())
+        elif self.path == "/hack/stop":
+            # Stop hack on all machines (runs in background thread)
+            print("[HACK] Stopping hack simulation on all machines...")
+            def _stop():
+                results = hack_stop_all()
+                print(f"[HACK] Stop results: {results}")
+            threading.Thread(target=_stop, daemon=True).start()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.write(json.dumps({"ok": True, "message": "Hack stopping on all machines"}).encode())
         elif self.path.startswith("/power/"):
             machine_id = self.path.split("/power/")[1].split("?")[0]
             length = int(self.headers.get("Content-Length", 0))
