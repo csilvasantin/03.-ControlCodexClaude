@@ -63,8 +63,10 @@ TAILSCALE_TO_ID = {
 def get_tailscale_live():
     """Ejecuta tailscale status y devuelve dict {machine_id: online/offline}."""
     try:
+        # macOS: tailscale CLI lives inside the app bundle
+        ts_bin = "/Applications/Tailscale.app/Contents/MacOS/Tailscale"
         result = subprocess.run(
-            ["tailscale", "status"], capture_output=True, text=True, timeout=5
+            [ts_bin, "status"], capture_output=True, text=True, timeout=5
         )
     except Exception:
         return {}
