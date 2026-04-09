@@ -349,10 +349,13 @@ HACK_TARGETS = [
 ]
 
 hack_active = False
+# Stores the frontmost app on each machine before hack started: {ip: "AppName"}
+hack_previous_app = {}
 
 
 def _hack_launch_one(host, ip):
-    """Upload and launch hack-sim.sh on one Mac via SSH (runs in thread)."""
+    """Upload and launch hack-sim.sh on one Mac via SSH (runs in thread).
+    Saves the current frontmost app so we can restore it on stop."""
     remote_path = "/tmp/hack-sim.sh"
     try:
         # Check reachable
@@ -362,6 +365,20 @@ def _hack_launch_one(host, ip):
             print(f"[HACK] {host} ({ip}): OFFLINE")
             return host, False
 
+        # Save current frontmost app before hijacking (best effort, don't block on failure)
+        try:
+            r = subprocess.run(
+                SSH_BASE + [f"{SSH_USER}@{ip}",
+                            "osascript -e 'tell application \"System Events\" to get name of first application process whose frontmost is true'"],
+                capture_output=True, text=True, timeout=10
+            )
+            prev_app = r.stdout.strip() if r.returncode == 0 else ""
+            if prev_app:
+                hack_previous_app[ip] = prev_app
+                print(f"[HACK] {host} ({ip}): saved previous app: {prev_app}")
+        except Exception as e:
+            print(f"[HACK] {host} ({ip}): could not save previous app ({e}), continuing")
+
         # Upload script
         subprocess.run(["scp", "-q"] + SSH_BASE[1:] + [str(HACK_SCRIPT), f"{SSH_USER}@{ip}:{remote_path}"],
                         capture_output=True, timeout=10)
@@ -369,11 +386,12 @@ def _hack_launch_one(host, ip):
                         capture_output=True, timeout=5)
 
         # Open Terminal fullscreen with hack script
+        # Use System Events to enter native macOS fullscreen (Ctrl+Cmd+F)
         applescript = f"""osascript -e '
 tell application "Terminal"
     activate
     do script "clear && bash /tmp/hack-sim.sh '\\\"'{host}'\\\"' '\\\"'{ip}'\\\"'"
-    delay 0.5
+    delay 0.8
     tell application "System Events"
         tell process "Terminal"
             set frontmost to true
@@ -392,14 +410,26 @@ end tell'"""
 
 
 def _hack_stop_one(host, ip):
-    """Kill hack-sim.sh and close Terminal on one Mac."""
+    """Kill hack-sim.sh, exit fullscreen, close Terminal, restore previous app."""
+    prev_app = hack_previous_app.pop(ip, "")
     try:
+        # 1. Kill the hack script
+        # 2. Exit fullscreen (Ctrl+Cmd+F) so Terminal returns to normal
+        # 3. Close Terminal
+        # 4. Reactivate the previously frontmost app
+        restore_cmd = "pkill -f hack-sim.sh 2>/dev/null; "
+        restore_cmd += "osascript -e '"
+        restore_cmd += 'tell application "System Events" to tell process "Terminal" to keystroke "f" using {command down, control down}'
+        restore_cmd += "' 2>/dev/null; sleep 0.5; "
+        restore_cmd += "osascript -e 'tell application \"Terminal\" to quit' 2>/dev/null"
+        if prev_app and prev_app != "Terminal":
+            restore_cmd += f"; sleep 0.3; osascript -e 'tell application \"{prev_app}\" to activate' 2>/dev/null"
+
         subprocess.run(
-            SSH_BASE + [f"{SSH_USER}@{ip}",
-                        "pkill -f hack-sim.sh 2>/dev/null; osascript -e 'tell application \"Terminal\" to quit' 2>/dev/null"],
-            capture_output=True, text=True, timeout=8
+            SSH_BASE + [f"{SSH_USER}@{ip}", restore_cmd],
+            capture_output=True, text=True, timeout=12
         )
-        print(f"[HACK] {host} ({ip}): STOPPED")
+        print(f"[HACK] {host} ({ip}): STOPPED, restored -> {prev_app or '(none)'}")
         return host, True
     except Exception as e:
         print(f"[HACK] {host} ({ip}): stop error {e}")
