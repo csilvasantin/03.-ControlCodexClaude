@@ -159,6 +159,28 @@
       }
     },
     {
+      "id": "admira-macbookairazul",
+      "unitType": "council",
+      "color": "azul",
+      "member": "CDO",
+      "role": "Chief Design Officer",
+      "name": "MacBook Air Azul (CDO)",
+      "machineRole": "Diseno",
+      "location": "Madrid",
+      "platform": "macOS",
+      "status": "offline",
+      "lastSeen": "2026-04-09T10:00:00Z",
+      "currentFocus": "Consejo creativo",
+      "note": "Tailscale: macbookairazul.tail48b61c.ts.net",
+      "ssh": {
+        "enabled": true,
+        "user": "csilvasantin",
+        "host": "macbookairazul.tail48b61c.ts.net",
+        "ip_tailscale": "100.84.81.45",
+        "connect_tailscale": "ssh csilvasantin@100.84.81.45"
+      }
+    },
+    {
       "id": "admira-macbookairblanco",
       "unitType": "council",
       "color": "plata",
