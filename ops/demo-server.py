@@ -39,7 +39,7 @@ status_overrides = {}
 WOL_MACS = {
     "admira-macbookair16":     "fe:e3:3e:4d:b6:70",
     "admira-macbookairplata":  "c6:87:57:bd:78:74",
-    "admira-macbook-carla":    "b2:ad:f6:de:d7:0e",
+    "admira-macbookaircrema":    "b2:ad:f6:de:d7:0e",
     "admira-macbookairazul":   "a6:57:10:7e:31:dc",
     "admira-macmini":          "",  # TODO: obtener MAC
     "admira-macbookpronegro14":"",  # TODO: obtener MAC
@@ -49,11 +49,11 @@ WOL_MACS = {
 
 TAILSCALE_TO_ID = {
     "macmini":              "admira-macmini",
-    "macbookaircrema":      "admira-macbook-carla",
+    "macbookaircrema":      "admira-macbookaircrema",
     "macbookpronegro14":    "admira-macbookpronegro14",
     "macbookair16":         "admira-macbookair16",
     "macbookairluna":       "admira-macbookairluna",
-    "macbook-air-de-carla": "admira-macbook-carla",
+    "macbookaircrema-1":    "admira-macbookaircrema",
     "macbookairblanco":     "admira-macbookairblanco",
     "macbookairplata":      "admira-macbookairplata",
     "macbookairazul":       "admira-macbookairazul",

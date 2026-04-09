@@ -115,23 +115,23 @@
       }
     },
     {
-      "id": "admira-macbook-carla",
+      "id": "admira-macbookaircrema",
       "unitType": "council",
-      "color": "gris",
-      "member": "Carla",
-      "role": "Desarrollo y operaciones",
-      "name": "MacBook Air de Carla",
+      "color": "crema",
+      "member": "CSO",
+      "role": "Chief Storytelling Officer",
+      "name": "MacBook Air Crema (CSO)",
       "machineRole": "Equipo activo",
       "location": "Madrid",
       "platform": "macOS",
       "status": "offline",
       "lastSeen": "2026-04-06T20:45:26.390Z",
       "currentFocus": "Tailscale conectado — idle",
-      "note": "Tailscale: macbook-air-de-carla.tail48b61c.ts.net",
+      "note": "Tailscale: macbookaircrema.tail48b61c.ts.net",
       "ssh": {
         "enabled": true,
         "user": "csilvasantin",
-        "host": "macbook-air-de-carla.tail48b61c.ts.net",
+        "host": "macbookaircrema.tail48b61c.ts.net",
         "ip_tailscale": "100.110.80.2",
         "connect_tailscale": "ssh csilvasantin@100.110.80.2"
       }
