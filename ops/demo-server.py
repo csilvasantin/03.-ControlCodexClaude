@@ -42,10 +42,11 @@ WOL_MACS = {
     "admira-macbookairplata":  "c6:87:57:bd:78:74",
     "admira-macbookaircrema":    "b2:ad:f6:de:d7:0e",
     "admira-macbookairazul":   "a6:57:10:7e:31:dc",
-    "admira-macmini":          "",  # TODO: obtener MAC
-    "admira-macbookpronegro14":"",  # TODO: obtener MAC
-    "admira-macbookairluna":   "",  # TODO: obtener MAC
-    "admira-macbookairblanco": "",  # TODO: obtener MAC
+    "admira-macmini":          "1c:f6:4c:3b:f0:17",
+    "admira-macbookpronegro14":"92:a2:4f:70:35:c7",
+    "admira-macbookairluna":   "",
+    "admira-macbookairblanco": "f6:5e:7e:9d:9b:ca",
+    "admira-pctwin":           "",
 }
 
 TAILSCALE_TO_ID = {
@@ -129,8 +130,37 @@ def send_wol(mac_address):
     sock.close()
 
 
+def _power_via_http_agent(machine_id, action):
+    """Envia comando sleep/wake a un agent HTTP (Windows)."""
+    agent_url = SCREENSHOT_AGENTS.get(machine_id)
+    if not agent_url:
+        return False, "Sin agent HTTP"
+    try:
+        data = json.dumps({"action": action}).encode()
+        req = urllib.request.Request(
+            f"{agent_url}/power", data=data, method="POST",
+            headers={"Content-Type": "application/json"}
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            result = json.loads(resp.read())
+        ok = result.get("ok", False)
+        msg = result.get("message", "")
+        print(f"[POWER] {machine_id}: HTTP agent {action} -> {msg}")
+        if ok and action == "sleep":
+            status_overrides[machine_id] = "offline"
+        return ok, msg
+    except Exception as e:
+        print(f"[POWER] {machine_id}: HTTP agent error {e}")
+        return False, str(e)
+
+
 def sleep_machine(machine_id):
-    """SSH al Mac y ejecuta pmset sleepnow."""
+    """Duerme una maquina via SSH (macOS) o HTTP agent (Windows)."""
+    # Windows: usar HTTP agent
+    if machine_id in SCREENSHOT_AGENTS:
+        return _power_via_http_agent(machine_id, "sleep")
+
+    # macOS: SSH + pmset
     ip = get_machine_ip(machine_id)
     if not ip:
         return False, "Sin IP"
