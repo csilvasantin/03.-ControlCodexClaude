@@ -19,6 +19,7 @@ import re
 import subprocess
 import time
 import threading
+import urllib.request
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 
@@ -58,7 +59,11 @@ TAILSCALE_TO_ID = {
     "macbookairplata":      "admira-macbookairplata",
     "macbookairplata-1":    "admira-macbookairplata",
     "macbookairazul":       "admira-macbookairazul",
+    "admiratwin":           "admira-pctwin",
 }
+
+# Machines with HTTP screenshot agents (Windows, etc.) instead of SSH
+SCREENSHOT_AGENTS = {}  # populated from machines.json at startup
 
 
 def get_tailscale_live():
@@ -104,6 +109,10 @@ def build_response():
         # Apply manual overrides (from toggle buttons)
         if mid in status_overrides:
             m["status"] = status_overrides[mid]
+        # Populate screenshot agent URLs for HTTP-based machines (Windows)
+        agent_url = m.get("screenshotAgent")
+        if agent_url:
+            SCREENSHOT_AGENTS[mid] = agent_url
 
     return data
 
@@ -196,13 +205,44 @@ def _is_blank_image(jpeg_bytes):
 last_good_screenshot = {}
 
 
+def _capture_via_http_agent(machine_id):
+    """Captura screenshot via HTTP agent (Windows, etc.)."""
+    agent_url = SCREENSHOT_AGENTS.get(machine_id)
+    if not agent_url:
+        return None
+    try:
+        req = urllib.request.Request(f"{agent_url}/screenshot", method="GET")
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            jpeg_bytes = resp.read()
+        if len(jpeg_bytes) < 1000:
+            return None
+        print(f"[SCREENSHOT] {machine_id}: HTTP agent OK ({len(jpeg_bytes)//1024}KB)")
+        return jpeg_bytes
+    except Exception as e:
+        print(f"[SCREENSHOT] {machine_id}: HTTP agent error {e}")
+        return None
+
+
 def capture_screenshot(machine_id):
-    """SSH a un Mac y captura la pantalla via Quartz. Devuelve bytes JPEG o None.
+    """Captura pantalla via HTTP agent (Windows) o SSH+Quartz (macOS).
     Si la captura es una pantalla bloqueada/screensaver, devuelve la ultima buena."""
     # Check TTL cache
     cached = screenshot_cache.get(machine_id)
     if cached and (time.time() - cached[0]) < CACHE_TTL:
         return cached[1]
+
+    # Try HTTP agent first (Windows machines)
+    if machine_id in SCREENSHOT_AGENTS:
+        jpeg_bytes = _capture_via_http_agent(machine_id)
+        if jpeg_bytes:
+            if _is_blank_image(jpeg_bytes):
+                print(f"[SCREENSHOT] {machine_id}: blank screen from agent, keeping last good")
+                screenshot_cache[machine_id] = (time.time(), last_good_screenshot.get(machine_id, jpeg_bytes))
+                return last_good_screenshot.get(machine_id, jpeg_bytes)
+            screenshot_cache[machine_id] = (time.time(), jpeg_bytes)
+            last_good_screenshot[machine_id] = jpeg_bytes
+            return jpeg_bytes
+        return last_good_screenshot.get(machine_id)
 
     ip = get_machine_ip(machine_id)
     if not ip:

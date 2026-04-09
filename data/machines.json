@@ -181,6 +181,26 @@
       }
     },
     {
+      "id": "admira-pctwin",
+      "unitType": "council",
+      "color": "negro",
+      "member": "CXO",
+      "role": "Chief Experience Officer",
+      "name": "AdmiraTwin PC (CXO)",
+      "machineRole": "Experiencia",
+      "location": "Madrid",
+      "platform": "windows",
+      "status": "offline",
+      "lastSeen": "2026-04-09T12:00:00Z",
+      "currentFocus": "Consejo creativo — Windows",
+      "note": "Tailscale: admiratwin.tail48b61c.ts.net",
+      "ssh": {
+        "enabled": false,
+        "ip_tailscale": "100.121.18.12"
+      },
+      "screenshotAgent": "http://100.121.18.12:3033"
+    },
+    {
       "id": "admira-macbookairblanco",
       "unitType": "council",
       "color": "plata",
