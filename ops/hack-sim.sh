@@ -307,26 +307,57 @@ case $(( (ART_SEED + 3) % 6 )) in
 esac
 CODE2_COUNT=${#ALL_CODE_LINES2[@]}
 
+# Language metadata: name, creator, year
+LANG_INFO=(
+    "Assembly|Various (Intel, AT&T)|1949"
+    "C|Dennis Ritchie (Bell Labs)|1972"
+    "C++|Bjarne Stroustrup|1985"
+    "Pascal|Niklaus Wirth|1970"
+    "JavaScript|Brendan Eich (Netscape)|1995"
+    "Lingo|John H. Thompson (Macromedia)|1988"
+)
+
+LANG1_IDX=$((ART_SEED % 6))
+LANG2_IDX=$(( (ART_SEED + 3) % 6 ))
 CODE_IDX=0
+TRANSITION_COUNT=0
 
 matrix_transition() {
-    # Full-screen code rain — overflow generously so it always fills
+    # Full-screen code rain with language header
     local ROWS=150
     local colors=("${G}" "${D}" "${DG}" "${C}" "${G}" "${D}")
+
+    # Alternate primary/secondary language each transition
+    local lang_idx
+    if (( TRANSITION_COUNT % 2 == 0 )); then
+        lang_idx=$LANG1_IDX
+    else
+        lang_idx=$LANG2_IDX
+    fi
+    TRANSITION_COUNT=$((TRANSITION_COUNT + 1))
+
+    IFS='|' read -r lang_name lang_creator lang_year <<< "${LANG_INFO[$lang_idx]}"
+
+    # Language header banner
     echo
+    echo -e "  ${W}╔══════════════════════════════════════════════════════════════╗${N}"
+    printf  "  ${W}║${N}  ${C}%-60s${N}${W}║${N}\n" "${lang_name}"
+    printf  "  ${W}║${N}  ${DG}Created by %-49s${N}${W}║${N}\n" "${lang_creator}"
+    printf  "  ${W}║${N}  ${DG}Year: %-54s${N}${W}║${N}\n" "${lang_year}"
+    echo -e "  ${W}╚══════════════════════════════════════════════════════════════╝${N}"
+    echo
+    sleep 0.5
+
     for ((l=0; l<ROWS; l++)); do
         local color="${colors[$((RANDOM % ${#colors[@]}))]}"
-        # Alternate between code lines and hex noise
         if (( RANDOM % 3 != 0 )); then
-            # Code line from primary or secondary language
-            if (( RANDOM % 2 == 0 )); then
+            if (( TRANSITION_COUNT % 2 == 0 )); then
                 echo -e "${color}${ALL_CODE_LINES[$((CODE_IDX % CODE_COUNT))]}${N}"
             else
                 echo -e "${color}${ALL_CODE_LINES2[$((CODE_IDX % CODE2_COUNT))]}${N}"
             fi
             CODE_IDX=$((CODE_IDX + 1))
         else
-            # Hex/address noise line
             printf "${DG}0x%08x: " $((RANDOM * RANDOM))
             for ((w=0; w<6; w++)); do
                 printf "%02x%02x " $((RANDOM % 256)) $((RANDOM % 256))
