@@ -1,6 +1,6 @@
 {
   "team": "AdmiraNext Team",
-  "updatedAt": "2026-04-09T19:35:25Z",
+  "updatedAt": "2026-04-10T07:47:17Z",
   "tailnet": "tail48b61c.ts.net",
   "machines": [
     {
@@ -13,9 +13,9 @@
       "machineRole": "Servidor central / Hub",
       "location": "Madrid",
       "platform": "macOS",
-      "status": "online",
-      "lastSeen": "2026-04-09T08:49:36Z",
-      "currentFocus": "Online — detectado por Tailscale",
+      "status": "offline",
+      "lastSeen": "2026-04-10T07:47:17Z",
+      "currentFocus": "Offline — ultima conexion hace 5m ago",
       "note": "Tailscale: macmini.tail48b61c.ts.net",
       "ssh": {
         "enabled": true,
@@ -57,9 +57,9 @@
       "machineRole": "Equipo de desarrollo",
       "location": "Madrid",
       "platform": "macOS",
-      "status": "online",
-      "lastSeen": "2026-04-09T12:03:11Z",
-      "currentFocus": "Online — detectado por Tailscale",
+      "status": "offline",
+      "lastSeen": "2026-04-10T07:47:17Z",
+      "currentFocus": "Offline — ultima conexion hace 3m ago",
       "note": "Tailscale: macbookpronegro14.tail48b61c.ts.net",
       "ssh": {
         "enabled": true,
@@ -146,9 +146,9 @@
       "machineRole": "Direccion",
       "location": "Madrid",
       "platform": "macOS",
-      "status": "online",
-      "lastSeen": "2026-04-09T08:49:36Z",
-      "currentFocus": "Online — detectado por Tailscale",
+      "status": "offline",
+      "lastSeen": "2026-04-10T07:47:17Z",
+      "currentFocus": "Offline — ultima conexion hace 55m ago",
       "note": "Tailscale, SSH y GitHub operativos. Chrome, Claude y Codex instalados. ClaudeBot y CodexBot activos. Perfil principal CEO listo para trabajo diario.",
       "ssh": {
         "enabled": true,
