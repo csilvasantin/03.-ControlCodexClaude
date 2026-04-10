@@ -434,188 +434,179 @@ sleep 2.5
 clear
 
 # ══════════════════════════════════════════════════════════════
-# PHASE 2: BOOT SEQUENCE (15s)
+# PHASE 2: HARDWARE FINGERPRINT — Real system data (20s)
+# ══════════════════════════════════════════════════════════════
+
+# Gather real hardware info
+HW_MODEL=$(system_profiler SPHardwareDataType 2>/dev/null | grep "Model Name" | awk -F': ' '{print $2}' || echo "Mac")
+HW_IDENT=$(system_profiler SPHardwareDataType 2>/dev/null | grep "Model Identifier" | awk -F': ' '{print $2}' || echo "Unknown")
+HW_CHIP=$(system_profiler SPHardwareDataType 2>/dev/null | grep "Chip" | awk -F': ' '{print $2}' || echo "Apple Silicon")
+HW_CORES=$(system_profiler SPHardwareDataType 2>/dev/null | grep "Total Number of Cores" | awk -F': ' '{print $2}' || echo "8")
+HW_RAM=$(system_profiler SPHardwareDataType 2>/dev/null | grep "Memory" | awk -F': ' '{print $2}' || echo "16 GB")
+HW_SERIAL=$(system_profiler SPHardwareDataType 2>/dev/null | grep "Serial Number" | awk -F': ' '{print $2}' || echo "XXXXXXXXXXXX")
+HW_UUID=$(system_profiler SPHardwareDataType 2>/dev/null | grep "Hardware UUID" | awk -F': ' '{print $2}' || echo "00000000-0000-0000-0000-000000000000")
+HW_FW=$(system_profiler SPHardwareDataType 2>/dev/null | grep "System Firmware" | awk -F': ' '{print $2}' || echo "Unknown")
+HW_DISK=$(df -h / 2>/dev/null | tail -1 | awk '{print $2}')
+HW_WIFI=$(networksetup -getairportnetwork en0 2>/dev/null | awk -F': ' '{print $2}' || echo "Unknown")
+HW_MACOS=$(sw_vers -productVersion 2>/dev/null || echo "15.x")
+
+echo
+echo -e "  ${C}╔══════════════════════════════════════════════════════════════╗${N}"
+echo -e "  ${C}║${N}  ${W}HARDWARE FINGERPRINT${N}  —  Remote Analysis                      ${C}║${N}"
+echo -e "  ${C}╠══════════════════════════════════════════════════════════════╣${N}"
+echo -e "  ${C}║${N}                                                                ${C}║${N}"
+
+# Animate each line appearing
+hw_line() {
+    local label="$1" value="$2"
+    printf "  ${C}║${N}   ${DG}%-18s${N} ${W}%-45s${N} ${C}║${N}\n" "$label" "$value"
+    sleep 0.4
+}
+
+hw_line "Model:" "$HW_MODEL"
+hw_line "Identifier:" "$HW_IDENT"
+hw_line "Chip:" "$HW_CHIP"
+hw_line "Cores:" "$HW_CORES"
+hw_line "Memory:" "$HW_RAM"
+hw_line "Disk:" "$HW_DISK"
+hw_line "macOS:" "$HW_MACOS"
+hw_line "Firmware:" "$HW_FW"
+hw_line "Serial:" "$HW_SERIAL"
+hw_line "UUID:" "$HW_UUID"
+hw_line "WiFi SSID:" "$HW_WIFI"
+hw_line "Tailscale IP:" "$IP"
+
+echo -e "  ${C}║${N}                                                                ${C}║${N}"
+echo -e "  ${C}║${N}   ${R}◉ DEVICE IDENTIFIED — VULNERABLE TO ${BREACH}${N}  ${C}║${N}"
+echo -e "  ${C}║${N}                                                                ${C}║${N}"
+echo -e "  ${C}╚══════════════════════════════════════════════════════════════╝${N}"
+echo
+sleep 3
+clear
+
+# ══════════════════════════════════════════════════════════════
+# PHASE 3: EXPLOIT LOADING (12s)
 # ══════════════════════════════════════════════════════════════
 
 echo
 echo -e "  ${R}╔══════════════════════════════════════════════════════╗${N}"
-echo -e "  ${R}║${N}  ${W}${HACKER}${N} — EXPLOIT FRAMEWORK v4.$(( ART_SEED + 2 ))           ${R}║${N}"
-echo -e "  ${R}╠══════════════════════════════════════════════════════╣${N}"
-echo -e "  ${R}║${N}                                                      ${R}║${N}"
+echo -e "  ${R}║${N}  ${W}${HACKER}${N}  —  EXPLOIT FRAMEWORK v4.$(( ART_SEED + 2 ))          ${R}║${N}"
+echo -e "  ${R}╚══════════════════════════════════════════════════════╝${N}"
 echo
 
-BOOT_ITEMS=("Kernel rootkit module" "Payload encryption" "C2 beacon channel" "Network drivers" "Anti-forensics" "Memory injector" "Privilege escalation" "Log cleaner daemon")
-# Each machine loads different items in different order
+BOOT_ITEMS=("Kernel rootkit" "Payload encrypt" "C2 beacon" "Net drivers" "Anti-forensics" "Mem injector")
 for i in 0 1 2 3 4 5; do
-    idx=$(( (i + ART_SEED) % 8 ))
+    idx=$(( (i + ART_SEED) % 6 ))
     progress_bar "${BOOT_ITEMS[$idx]}" 100 "$G"
-    sleep 0.1
 done
 
 echo
-echo -e "  ${R}║${N}                                                      ${R}║${N}"
-echo -e "  ${R}╚══════════════════════════════════════════════════════╝${N}"
-echo
-echo -e "  ${G}▶ All modules loaded. Initiating breach sequence...${N}"
+echo -e "  ${G}  ▶ All modules loaded${N}"
+sleep 1
+clear
+
+# ══════════════════════════════════════════════════════════════
+# PHASE 4: NETWORK MAP (15s)
+# ══════════════════════════════════════════════════════════════
+
+show_mid_art
 sleep 1.5
 clear
 
-# ══════════════════════════════════════════════════════════════
-# PHASE 3: BREACH — TARGET INFO PANEL (20s)
-# ══════════════════════════════════════════════════════════════
-
 echo
-echo -e "  ${R}[!] INTRUSION DETECTED${N}"
-echo -e "  ${DG}$(date '+%Y-%m-%d %H:%M:%S')${N}"
-echo
-echo -e "  ${C}┌─── TARGET ──────────────────┬─── BREACH LOG ─────────────────────┐${N}"
-echo -e "  ${C}│${N}                              ${C}│${N}                                     ${C}│${N}"
-printf  "  ${C}│${N}  ${W}Host:${N}  %-20s ${C}│${N}" "${HOST}"
-log_line "$D" "> Scanning ports..."
-printf  "  ${C}│${N}  ${W}IP:${N}    %-20s ${C}│${N}" "${IP}"
-log_line "$Y" "> ${BREACH}..."
-printf  "  ${C}│${N}  ${W}User:${N}  %-20s ${C}│${N}" "${USER_NAME}"
-log_line "$G" "> Root access obtained"
-printf  "  ${C}│${N}  ${W}OS:${N}    %-20s ${C}│${N}" "macOS 15.4 arm64"
-log_line "$G" "> Firewall rules flushed"
-printf  "  ${C}│${N}  ${W}Group:${N} %-20s ${C}│${N}" "${HACKER}"
-log_line "$R" "> SYSTEM COMPROMISED"
-echo -e "  ${C}│${N}                              ${C}│${N}                                     ${C}│${N}"
-echo -e "  ${C}└──────────────────────────────┴─────────────────────────────────────┘${N}"
-echo
-sleep 2
-
-# Show private key found
-echo -e "  ${Y}── Credential Extraction ──${N}"
-echo
-echo -e "  ${DG}Found: ~/.ssh/id_ed25519${N}"
-echo -e "  ${Y}┌─────────────────────────────────────────────────┐${N}"
-echo -e "  ${Y}│${N} -----BEGIN ${KEY_TYPE} KEY-----                ${Y}│${N}"
-echo -e "  ${Y}│${N} $(randhex 48)  ${Y}│${N}"
-echo -e "  ${Y}│${N} $(randhex 48)  ${Y}│${N}"
-echo -e "  ${Y}│${N} $(randhex 48)  ${Y}│${N}"
-echo -e "  ${Y}│${N} -----END ${KEY_TYPE} KEY-----                  ${Y}│${N}"
-echo -e "  ${Y}└─────────────────────────────────────────────────┘${N}"
-echo
-sleep 2
-clear
-
-# ══════════════════════════════════════════════════════════════
-# PHASE 4: NETWORK MAP — Council topology (20s)
-# ══════════════════════════════════════════════════════════════
-
-echo
-echo -e "  ${C}╔══════════════════════════════════════════════════════╗${N}"
-echo -e "  ${C}║${N}  ${W}NETWORK TOPOLOGY — Tailscale Mesh${N}                    ${C}║${N}"
-echo -e "  ${C}╚══════════════════════════════════════════════════════╝${N}"
-echo
-
-# Show mid-phase art
-show_mid_art
-sleep 1
-
-# Network map with nodes appearing
-echo -e "  ${G}    Scanning internal network...${N}"
-echo
-sleep 0.5
+echo -e "  ${C}╔══════════════════════════════════════════════════════════════╗${N}"
+echo -e "  ${C}║${N}  ${W}NETWORK TOPOLOGY — Tailscale Mesh${N}                              ${C}║${N}"
+echo -e "  ${C}╠══════════════════════════════════════════════════════════════╣${N}"
+echo -e "  ${C}║${N}                                                                ${C}║${N}"
+echo -e "  ${C}║${N}     ${D}┌─────┐     ┌─────┐     ┌─────┐     ┌─────┐${N}             ${C}║${N}"
+echo -e "  ${C}║${N}     ${D}│ CEO ├─────┤ CTO ├─────┤ COO ├─────┤ CFO │${N}             ${C}║${N}"
+echo -e "  ${C}║${N}     ${D}└──┬──┘     └──┬──┘     └──┬──┘     └──┬──┘${N}             ${C}║${N}"
+echo -e "  ${C}║${N}     ${D}   │           │           │           │${N}                ${C}║${N}"
+echo -e "  ${C}║${N}     ${D}┌──┴──┐     ┌──┴──┐     ┌──┴──┐     ┌──┴──┐${N}             ${C}║${N}"
+echo -e "  ${C}║${N}     ${D}│ CCO ├─────┤ CDO ├─────┤ CXO ├─────┤ CSO │${N}             ${C}║${N}"
+echo -e "  ${C}║${N}     ${D}└─────┘     └─────┘     └─────┘     └─────┘${N}             ${C}║${N}"
+echo -e "  ${C}║${N}                                                                ${C}║${N}"
+echo -e "  ${C}╠══════════════════════════════════════════════════════════════╣${N}"
 
 for i in 0 1 2 3 4 5 6 7; do
     if [ "$i" -eq "$ART_SEED" ]; then
-        # Current machine — highlight
-        printf "  ${R}  ▶ [${COUNCIL_NAMES[$i]}]${N}  ${W}%-22s${N}  ${COUNCIL_IPS[$i]}  ${R}◄ YOU ARE HERE${N}\n" "${COUNCIL_HOSTS[$i]}"
+        printf "  ${C}║${N}  ${R}▶ %-5s${N} ${W}%-18s${N} ${DG}%-17s${N} ${R}◄ TARGET${N}   ${C}║${N}\n" "${COUNCIL_NAMES[$i]}" "${COUNCIL_HOSTS[$i]}" "${COUNCIL_IPS[$i]}"
     else
-        printf "  ${G}    [${COUNCIL_NAMES[$i]}]${N}  ${DG}%-22s${N}  ${COUNCIL_IPS[$i]}  ${G}VULNERABLE${N}\n" "${COUNCIL_HOSTS[$i]}"
+        printf "  ${C}║${N}  ${G}  %-5s${N} ${DG}%-18s${N} ${DG}%-17s${N} ${G}VULN${N}       ${C}║${N}\n" "${COUNCIL_NAMES[$i]}" "${COUNCIL_HOSTS[$i]}" "${COUNCIL_IPS[$i]}"
     fi
-    sleep 0.4
+    sleep 0.3
 done
 
-echo
-echo -e "  ${D}    ┌───┐   ┌───┐   ┌───┐   ┌───┐${N}"
-echo -e "  ${D}    │CEO├───┤CTO├───┤COO├───┤CFO│${N}"
-echo -e "  ${D}    └─┬─┘   └─┬─┘   └─┬─┘   └─┬─┘${N}"
-echo -e "  ${D}      │       │       │       │${N}"
-echo -e "  ${D}    ┌─┴─┐   ┌─┴─┐   ┌─┴─┐   ┌─┴─┐${N}"
-echo -e "  ${D}    │CCO├───┤CDO├───┤CXO├───┤CSO│${N}"
-echo -e "  ${D}    └───┘   └───┘   └───┘   └───┘${N}"
+echo -e "  ${C}║${N}                                                                ${C}║${N}"
+echo -e "  ${C}╚══════════════════════════════════════════════════════════════╝${N}"
 echo
 sleep 2
 
-# Second movie quote
 show_movie_quote $((ART_SEED + 3))
-sleep 1.5
+sleep 2
 clear
 
 # ══════════════════════════════════════════════════════════════
-# PHASE 5: DATA EXFILTRATION (25s)
+# PHASE 5: DATA EXFILTRATION (20s)
 # ══════════════════════════════════════════════════════════════
 
 echo
-echo -e "  ${R}╔══════════════════════════════════════════════════════╗${N}"
-echo -e "  ${R}║${N}  ${W}DATA EXFILTRATION${N}  →  ${Y}${C2}${N}       ${R}║${N}"
-echo -e "  ${R}╚══════════════════════════════════════════════════════╝${N}"
+echo -e "  ${R}╔══════════════════════════════════════════════════════════════╗${N}"
+echo -e "  ${R}║${N}  ${W}DATA EXFILTRATION${N}  →  ${Y}${C2}${N}                      ${R}║${N}"
+echo -e "  ${R}╠══════════════════════════════════════════════════════════════╣${N}"
+echo -e "  ${R}║${N}                                                                ${R}║${N}"
 echo
 
-# Database dumps with individual progress bars
-echo -e "  ${Y}── Database Extraction ──${N}"
-echo
 progress_bar "$DB_A" 100 "$G"
-sleep 0.2
 progress_bar "$DB_B" 100 "$G"
-sleep 0.2
 progress_bar "$DB_C" 100 "$G"
-echo
 
-# Files found table
-echo -e "  ${Y}── Sensitive Files Located ──${N}"
 echo
-echo -e "  ${C}┌──────────────────────────────────────────┬──────────┐${N}"
-echo -e "  ${C}│${N}  ${W}File${N}                                      ${C}│${N}  ${W}Status${N}  ${C}│${N}"
-echo -e "  ${C}├──────────────────────────────────────────┼──────────┤${N}"
+echo -e "  ${C}  ┌──────────────────────────────────────┬──────────┐${N}"
+echo -e "  ${C}  │${N}  ${W}Sensitive File${N}                          ${C}│${N}  ${W}Status${N}  ${C}│${N}"
+echo -e "  ${C}  ├──────────────────────────────────────┼──────────┤${N}"
 
-SECRET_FILES=(".ssh/id_ed25519" "projects/.env.production" "Documents/Passwords_master.kdbx" "Library/Keychains/login.keychain" ".aws/credentials" "Documents/Presupuesto_2026.xlsx")
-for f in "${SECRET_FILES[@]}"; do
-    printf "  ${C}│${N}  ${DG}%-40s${N}${C}│${N}  ${G}COPIED${N}  ${C}│${N}\n" "$f"
-    sleep 0.4
+FILES=(".ssh/id_ed25519" ".env.production" "Passwords_master.kdbx" "login.keychain")
+for f in "${FILES[@]}"; do
+    printf "  ${C}  │${N}  ${DG}%-38s${N}${C}│${N}  ${G}COPIED${N}  ${C}│${N}\n" "$f"
+    sleep 0.3
 done
-echo -e "  ${C}└──────────────────────────────────────────┴──────────┘${N}"
-echo
+echo -e "  ${C}  └──────────────────────────────────────┴──────────┘${N}"
 
-# Upload progress
-echo -e "  ${Y}── Uploading to C2 ──${N}"
 echo
-progress_bar "Encrypting payload" 100 "$M"
-progress_bar "Uploading ${EXFIL_SIZE}" 100 "$R"
+progress_bar "Upload to C2" 100 "$R"
 echo
-echo -e "  ${G}  ✓ ${EXFIL_SIZE} exfiltrated to ${C2}${N}"
+echo -e "  ${R}║${N}                                                                ${R}║${N}"
+echo -e "  ${R}║${N}  ${G}✓ ${EXFIL_SIZE} exfiltrated successfully${N}                            ${R}║${N}"
+echo -e "  ${R}║${N}                                                                ${R}║${N}"
+echo -e "  ${R}╚══════════════════════════════════════════════════════════════╝${N}"
 echo
 sleep 2
 
-# Third movie quote
 show_movie_quote $((ART_SEED + 5))
-sleep 1.5
+sleep 2
 clear
 
 # ══════════════════════════════════════════════════════════════
-# PHASE 6: LATERAL MOVEMENT + PERSISTENCE (15s)
+# PHASE 6: PERSISTENCE (8s)
 # ══════════════════════════════════════════════════════════════
 
-echo
-echo -e "  ${M}╔══════════════════════════════════════════════════════╗${N}"
-echo -e "  ${M}║${N}  ${W}LATERAL MOVEMENT & PERSISTENCE${N}                      ${M}║${N}"
-echo -e "  ${M}╚══════════════════════════════════════════════════════╝${N}"
-echo
-
-# Pivot to next machine
 PIVOT_IDX=$(( (ART_SEED + 1) % 8 ))
-log_line "$C" "Pivoting to ${COUNCIL_HOSTS[$PIVOT_IDX]} (${COUNCIL_IPS[$PIVOT_IDX]})..."
-log_line "$G" "SSH tunnel established"
-log_line "$Y" "Deploying rootkit to ${COUNCIL_HOSTS[$PIVOT_IDX]}"
-log_line "$G" "Persistence installed: LaunchDaemon .com.apple.update"
-log_line "$D" "Cron backdoor: */5 * * * * /tmp/.b4ckd00r.sh"
-log_line "$R" "Tracks cleared: history, logs, forensic artifacts"
-echo
 
-sleep 1
+echo
+echo -e "  ${M}╔══════════════════════════════════════════════════════════════╗${N}"
+echo -e "  ${M}║${N}  ${W}PERSISTENCE & LATERAL MOVEMENT${N}                                 ${M}║${N}"
+echo -e "  ${M}╠══════════════════════════════════════════════════════════════╣${N}"
+echo -e "  ${M}║${N}                                                                ${M}║${N}"
+printf  "  ${M}║${N}  ${C}▶${N} Pivoting to ${W}%-20s${N} ${DG}%s${N}             ${M}║${N}\n" "${COUNCIL_HOSTS[$PIVOT_IDX]}" "${COUNCIL_IPS[$PIVOT_IDX]}"
+echo -e "  ${M}║${N}  ${G}✓${N} SSH tunnel established                                      ${M}║${N}"
+echo -e "  ${M}║${N}  ${G}✓${N} Rootkit deployed                                            ${M}║${N}"
+echo -e "  ${M}║${N}  ${G}✓${N} LaunchDaemon persistence installed                          ${M}║${N}"
+echo -e "  ${M}║${N}  ${R}✓${N} Tracks cleared: history, logs, artifacts                    ${M}║${N}"
+echo -e "  ${M}║${N}                                                                ${M}║${N}"
+echo -e "  ${M}╚══════════════════════════════════════════════════════════════╝${N}"
+echo
+sleep 2
 
 # ══════════════════════════════════════════════════════════════
 # FINALE — Unique art + summary box
