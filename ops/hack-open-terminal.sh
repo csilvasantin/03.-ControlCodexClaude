@@ -6,24 +6,24 @@
 HOST="$1"
 IP="$2"
 
-# Map each machine to a unique Terminal profile
+# Map each machine to a unique Terminal profile + art index (0-7)
 case "$HOST" in
-    MacBookAir16|macbookair16)           PROFILE="Homebrew" ;;       # CEO - Steve Jobs
-    MacBookProNegro14|macbookpronegro14) PROFILE="Red Sands" ;;      # CTO - Steve Wozniak
-    MacBookAirPlata|macbookairplata)     PROFILE="Ocean" ;;          # COO - Tim Cook
-    MacMini|macmini)                     PROFILE="Pro" ;;            # CFO - Warren Buffett
-    MacBookAirBlanco|macbookairblanco)   PROFILE="Novel" ;;          # CCO - Walt Disney
-    MacBookAirAzul|macbookairazul)       PROFILE="Silver Aerogel" ;; # CDO - Dieter Rams
-    AdmiraTwin|admira-pctwin)            PROFILE="Grass" ;;          # CXO - Howard Schultz
-    MacBookAirCrema|macbookaircrema)     PROFILE="Man Page" ;;       # CSO - George Lucas
-    *)                                   PROFILE="Basic" ;;
+    MacBookAir16|macbookair16)           PROFILE="Homebrew";       IDX=0 ;; # CEO - Steve Jobs
+    MacBookProNegro14|macbookpronegro14) PROFILE="Red Sands";      IDX=1 ;; # CTO - Steve Wozniak
+    MacBookAirPlata|macbookairplata)     PROFILE="Ocean";          IDX=2 ;; # COO - Tim Cook
+    MacMini|macmini)                     PROFILE="Pro";            IDX=3 ;; # CFO - Warren Buffett
+    MacBookAirBlanco|macbookairblanco)   PROFILE="Novel";          IDX=4 ;; # CCO - Walt Disney
+    MacBookAirAzul|macbookairazul)       PROFILE="Silver Aerogel"; IDX=5 ;; # CDO - Dieter Rams
+    AdmiraTwin|admira-pctwin)            PROFILE="Grass";          IDX=6 ;; # CXO - Howard Schultz
+    MacBookAirCrema|macbookaircrema)     PROFILE="Man Page";       IDX=7 ;; # CSO - George Lucas
+    *)                                   PROFILE="Basic";          IDX=0 ;;
 esac
 
 # Step 1: Open Terminal with the assigned profile, run hack script, maximize window
 osascript -e "
 tell application \"Terminal\"
     activate
-    set newTab to do script \"export TERM=xterm-256color; clear && bash /tmp/hack-sim.sh '$HOST' '$IP'\" in (do script \"\")
+    set newTab to do script \"export TERM=xterm-256color; clear && bash /tmp/hack-sim.sh '$HOST' '$IP' '$IDX'\" in (do script \"\")
     delay 0.3
     set current settings of front window to settings set \"$PROFILE\"
     set bounds of front window to {0, 0, 3000, 2000}
