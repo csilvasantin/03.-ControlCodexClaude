@@ -7,6 +7,7 @@ HOST="${1:-$(hostname)}"
 IP="${2:-127.0.0.1}"
 ART_SEED="${3:-0}"
 USER_NAME="$(whoami)"
+export TERM="${TERM:-xterm-256color}"
 COLS=$(tput cols 2>/dev/null || echo 80)
 
 # ══════════════════════════════════════════════
