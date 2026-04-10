@@ -618,20 +618,27 @@ matrix_transition() {
     IFS='|' read -r lang2_name lang2_creator lang2_year <<< "${LANG_INFO[$LANG2_IDX]}"
     IFS='|' read -r lang3_name lang3_creator lang3_year <<< "${LANG3_INFO[$LANG3_IDX]}"
 
-    # 5-column header: machine code + 4 languages
+    # Lingo is always the middle column (column 3)
+    local lingo_name="Lingo"
+    local lingo_info="John H. Thompson, 1988-2017"
+
+    # 5-column header: lang1 | lang2 | Lingo | lang3(modern) | machine code
     echo
-    echo -e "${W}╔══════════════╦═══════════════╦═══════════════╦═══════════════╦═══════════════╗${N}"
-    printf  "${W}║${N}${DG} Machine Code ${N}${W}║${N} ${C}%-14s${N}${W}║${N} ${C}%-14s${N}${W}║${N} ${C}%-14s${N}${W}║${N} ${C}%-14s${N}${W}║${N}\n" "${lang1_name}" "${lang2_name}" "${lang3_name}" "Hex Dump"
-    printf  "${W}║${N}${DG} Binary/Opcodes${N}${W}║${N} ${DG}%-14s${N}${W}║${N} ${DG}%-14s${N}${W}║${N} ${DG}%-14s${N}${W}║${N} ${DG}%-14s${N}${W}║${N}\n" "${lang1_year}" "${lang2_year}" "${lang3_year}" "Raw Memory"
-    echo -e "${W}╚══════════════╩═══════════════╩═══════════════╩═══════════════╩═══════════════╝${N}"
+    echo -e "${W}╔═══════════════╦═══════════════╦═══════════════╦═══════════════╦═══════════════╗${N}"
+    printf  "${W}║${N} ${C}%-14s${N}${W}║${N} ${C}%-14s${N}${W}║${N} ${Y}%-14s${N}${W}║${N} ${C}%-14s${N}${W}║${N} ${DG}%-14s${N}${W}║${N}\n" "${lang1_name}" "${lang2_name}" "${lingo_name}" "${lang3_name}" "Machine Code"
+    printf  "${W}║${N} ${DG}%-14s${N}${W}║${N} ${DG}%-14s${N}${W}║${N} ${DG}%-14s${N}${W}║${N} ${DG}%-14s${N}${W}║${N} ${DG}%-14s${N}${W}║${N}\n" "${lang1_creator}" "${lang2_creator}" "${lingo_info}" "${lang3_creator}" "x86-64 opcodes"
+    printf  "${W}║${N} ${DG}%-14s${N}${W}║${N} ${DG}%-14s${N}${W}║${N} ${DG}%-14s${N}${W}║${N} ${DG}%-14s${N}${W}║${N} ${DG}%-14s${N}${W}║${N}\n" "${lang1_year}" "${lang2_year}" "Macromedia" "${lang3_year}" "1978-present"
+    echo -e "${W}╚═══════════════╩═══════════════╩═══════════════╩═══════════════╩═══════════════╝${N}"
     echo
     sleep 0.5
 
     local CW=$(( (COLS / 5) ))
     local code2_idx=$((CODE_IDX + 17))
     local code3_idx=$((CODE_IDX + 7))
+    local lingo_idx=$((CODE_IDX + 11))
+    local LINGO_COUNT=${#LINGO_LINES[@]}
 
-    # Machine code opcodes for column 0
+    # x86-64 opcodes
     local -a OPCODES=(
         "55 48 89 e5 48 83"
         "ec 40 c7 45 fc 00"
@@ -673,27 +680,27 @@ matrix_transition() {
         local c3="${colors[$((RANDOM % ${#colors[@]}))]}"
         local c4="${colors[$((RANDOM % ${#colors[@]}))]}"
 
-        # Column 0: machine code opcodes
-        local col0="${OPCODES[$((op_idx % OP_COUNT))]}"
-        op_idx=$((op_idx + 1))
-
-        # Column 1: classic language 1
+        # Col 1: classic language 1
         local col1="${ALL_CODE_LINES[$((CODE_IDX % CODE_COUNT))]}"
         CODE_IDX=$((CODE_IDX + 1))
 
-        # Column 2: classic language 2
+        # Col 2: classic language 2
         local col2="${ALL_CODE_LINES2[$((code2_idx % CODE2_COUNT))]}"
         code2_idx=$((code2_idx + 1))
 
-        # Column 3: modern language
-        local col3="${ALL_CODE_LINES3[$((code3_idx % CODE3_COUNT))]}"
+        # Col 3: Lingo (always)
+        local col3="${LINGO_LINES[$((lingo_idx % LINGO_COUNT))]}"
+        lingo_idx=$((lingo_idx + 1))
+
+        # Col 4: modern language
+        local col4="${ALL_CODE_LINES3[$((code3_idx % CODE3_COUNT))]}"
         code3_idx=$((code3_idx + 1))
 
-        # Column 4: hex memory dump
-        local col4
-        printf -v col4 '%04x: %02x %02x %02x %02x' $((RANDOM % 65536)) $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256))
+        # Col 5: machine code opcodes
+        local col5="${OPCODES[$((op_idx % OP_COUNT))]}"
+        op_idx=$((op_idx + 1))
 
-        printf "${DG}%-${CW}s${N}${c1}%-${CW}s${N}${c2}%-${CW}s${N}${c3}%-${CW}s${N}${c4}%-${CW}s${N}\n" "${col0:0:$CW}" "${col1:0:$CW}" "${col2:0:$CW}" "${col3:0:$CW}" "${col4:0:$CW}"
+        printf "${c1}%-${CW}s${c2}%-${CW}s${Y}%-${CW}s${c3}%-${CW}s${DG}%-${CW}s${N}\n" "${col1:0:$CW}" "${col2:0:$CW}" "${col3:0:$CW}" "${col4:0:$CW}" "${col5:0:$CW}"
         sleep 0.02
     done
 }
