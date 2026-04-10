@@ -763,18 +763,18 @@ matrix_transition() {
     local lingo_info="J.H. Thompson"
     IFS='|' read -r ai_name ai_creator ai_year <<< "${AI_LANG_INFO[$AI_LANG_IDX]}"
 
-    # 6 columns with " │ " separators (5 separators × 3 chars = 15)
-    local CW=$(( (COLS - 15) / 6 ))
+    # 6 columns with "  │  " separators (5 separators × 5 chars = 25)
+    local CW=$(( (COLS - 25) / 6 ))
 
     # Build dynamic header
     local hline=""
-    for ((i=0; i<$((CW+2)); i++)); do hline+="═"; done
+    for ((i=0; i<$((CW+4)); i++)); do hline+="═"; done
 
     echo
     echo -e "${W}╔${hline}╦${hline}╦${hline}╦${hline}╦${hline}╦${hline}╗${N}"
-    printf  "${W}║${N} ${G}%-$((CW+1))s${W}║${N} ${C}%-$((CW+1))s${W}║${N} ${Y}%-$((CW+1))s${W}║${N} ${M}%-$((CW+1))s${W}║${N} ${W}%-$((CW+1))s${W}║${N} ${R}%-$((CW+1))s${W}║${N}\n" "${lang1_name}" "${lang2_name}" "${lingo_name}" "${lang3_name}" "${ai_name}" "Machine Code"
-    printf  "${W}║${N} ${DG}%-$((CW+1))s${W}║${N} ${DG}%-$((CW+1))s${W}║${N} ${DG}%-$((CW+1))s${W}║${N} ${DG}%-$((CW+1))s${W}║${N} ${DG}%-$((CW+1))s${W}║${N} ${DG}%-$((CW+1))s${W}║${N}\n" "${lang1_creator}" "${lang2_creator}" "${lingo_info}" "${lang3_creator}" "${ai_creator}" "x86-64"
-    printf  "${W}║${N} ${DG}%-$((CW+1))s${W}║${N} ${DG}%-$((CW+1))s${W}║${N} ${DG}%-$((CW+1))s${W}║${N} ${DG}%-$((CW+1))s${W}║${N} ${DG}%-$((CW+1))s${W}║${N} ${DG}%-$((CW+1))s${W}║${N}\n" "${lang1_year}" "${lang2_year}" "1988-2017" "${lang3_year}" "${ai_year}" "1978-now"
+    printf  "${W}║${N}  ${G}%-$((CW+2))s${W}║${N}  ${C}%-$((CW+2))s${W}║${N}  ${Y}%-$((CW+2))s${W}║${N}  ${M}%-$((CW+2))s${W}║${N}  ${W}%-$((CW+2))s${W}║${N}  ${R}%-$((CW+2))s${W}║${N}\n" "${lang1_name}" "${lang2_name}" "${lingo_name}" "${lang3_name}" "${ai_name}" "Machine Code"
+    printf  "${W}║${N}  ${DG}%-$((CW+2))s${W}║${N}  ${DG}%-$((CW+2))s${W}║${N}  ${DG}%-$((CW+2))s${W}║${N}  ${DG}%-$((CW+2))s${W}║${N}  ${DG}%-$((CW+2))s${W}║${N}  ${DG}%-$((CW+2))s${W}║${N}\n" "${lang1_creator}" "${lang2_creator}" "${lingo_info}" "${lang3_creator}" "${ai_creator}" "x86-64"
+    printf  "${W}║${N}  ${DG}%-$((CW+2))s${W}║${N}  ${DG}%-$((CW+2))s${W}║${N}  ${DG}%-$((CW+2))s${W}║${N}  ${DG}%-$((CW+2))s${W}║${N}  ${DG}%-$((CW+2))s${W}║${N}  ${DG}%-$((CW+2))s${W}║${N}\n" "${lang1_year}" "${lang2_year}" "1988-2017" "${lang3_year}" "${ai_year}" "1978-now"
     echo -e "${W}╚${hline}╩${hline}╩${hline}╩${hline}╩${hline}╩${hline}╝${N}"
     echo
     sleep 0.5
@@ -834,7 +834,7 @@ matrix_transition() {
         local col6="${OPCODES[$((op_idx % OP_COUNT))]}"
         op_idx=$((op_idx + 1))
 
-        printf "${G}%-${CW}s ${DG}│ ${C}%-${CW}s ${DG}│ ${Y}%-${CW}s ${DG}│ ${M}%-${CW}s ${DG}│ ${W}%-${CW}s ${DG}│ ${R}%-${CW}s${N}\n" "${col1:0:$CW}" "${col2:0:$CW}" "${col3:0:$CW}" "${col4:0:$CW}" "${col5:0:$CW}" "${col6:0:$CW}"
+        printf "${G}%-${CW}s  ${DG}│  ${C}%-${CW}s  ${DG}│  ${Y}%-${CW}s  ${DG}│  ${M}%-${CW}s  ${DG}│  ${W}%-${CW}s  ${DG}│  ${R}%-${CW}s${N}\n" "${col1:0:$CW}" "${col2:0:$CW}" "${col3:0:$CW}" "${col4:0:$CW}" "${col5:0:$CW}" "${col6:0:$CW}"
         sleep 0.02
     done
 }
