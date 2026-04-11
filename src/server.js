@@ -284,15 +284,15 @@ const server = createServer(async (request, response) => {
     }
 
     const reachable = await getReachableMachines();
-    const snapshots = getAllSnapshots();
+    const wdState = getWatchdogState();
     const targets = target === "all" ? ["claude", "codex"] : [target];
 
-    // Only send to machines where the target app is actually open
+    // Only send to machines where the target app is actually open (from watchdog state)
     const jobs = [];
     for (const machine of reachable) {
-      const snap = snapshots[machine.id];
+      const mState = wdState.perMachine?.[machine.id];
       for (const t of targets) {
-        const appState = t === "claude" ? snap?.claudeState : snap?.codexState;
+        const appState = t === "claude" ? mState?.claudeState : mState?.codexState;
         const isOpen = appState !== null && appState !== undefined && appState !== "no-window" && appState !== "OFF";
         if (isOpen) {
           jobs.push(sendPromptToMachine(machine.id, prompt, t));

@@ -528,13 +528,13 @@ export async function approveAll(target, onlyPending = false) {
   // ONLY send to reachable (online) machines — skip offline immediately
   let automationEnabled = data.machines.filter((m) => isAutomationReady(m));
 
-  // If onlyPending, filter to machines where the target app is actually open
+  // If onlyPending, filter to machines where the target app is actually open (from watchdog)
   if (onlyPending) {
     automationEnabled = automationEnabled.filter((m) => {
-      const snapshot = machineSnapshots.get(m.id);
-      if (!snapshot) return false;
-      if (target === "claude") return isActiveDesktopApp(snapshot.claudeState);
-      if (target === "codex") return isActiveDesktopApp(snapshot.codexState);
+      const mState = watchdogState.perMachine[m.id];
+      if (!mState) return false;
+      if (target === "claude") return isActiveDesktopApp(mState.claudeState);
+      if (target === "codex") return isActiveDesktopApp(mState.codexState);
       return true;
     });
   }
