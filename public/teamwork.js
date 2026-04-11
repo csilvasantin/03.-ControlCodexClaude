@@ -897,11 +897,11 @@ async function loadTelegramInbox() {
         </div>
       </div>
     `).join("");
-    // Auto-load last message into prompt field + pre-select target
+    // Always load last message into prompt field + pre-select target
     const last = data.messages[data.messages.length - 1];
     const input = document.querySelector("#quickInput");
     const targetSelect = document.querySelector("#sendAllTarget");
-    if (last?.text && input && !input.value) {
+    if (last?.text && input) {
       input.value = last.text;
       const targetLabel = last.target === "claude" ? "Claude" : "Codex";
       input.placeholder = `📱 ${last.from} → ${targetLabel}: listo para enviar`;
