@@ -229,6 +229,16 @@ h1 {
   letter-spacing: 0;
 }
 
+.tw-group-count {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--accent);
+  margin-left: 8px;
+  opacity: 0.8;
+}
+
 .tw-group-council {
   background: rgba(26, 127, 90, 0.12);
   color: var(--accent);

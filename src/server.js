@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { extname, resolve } from "node:path";
 
 import { createMachineEntry, readMachines, updateMachineStatus, updateMachineSync } from "./store.js";
-import { sendPromptToMachine, resolveMachineName, getCapture, getImageBuffer, approveAll, approveMachine, getAllSnapshots, getReachableMachines, getWatchdogState, setWatchdogEnabled, setMachineWatchdog, sendOnboardingToAll, startWatchdog } from "./ssh-exec.js";
+import { sendPromptToMachine, resolveMachineName, getCapture, getImageBuffer, approveAll, approveMachine, getAllSnapshots, getReachableMachines, getWatchdogState, setWatchdogEnabled, setMachineWatchdog, sendOnboardingToAll, startWatchdog, healthCheckAll, getTailscaleStatus } from "./ssh-exec.js";
 import { addEntry, getHistory } from "./teamwork-store.js";
 
 const PORT = 3030;
@@ -286,6 +286,41 @@ const server = createServer(async (request, response) => {
     return;
   }
 
+  // Health check endpoint
+  if (request.method === "POST" && url.pathname === "/api/health-check") {
+    const results = await healthCheckAll();
+    sendJson(response, 200, { ok: true, results });
+    return;
+  }
+
+  // Live Tailscale status endpoint
+  if (request.method === "GET" && url.pathname === "/api/tailscale-status") {
+    const peers = await getTailscaleStatus();
+    if (!peers) {
+      sendJson(response, 500, { error: "tailscale not available" });
+      return;
+    }
+    // Merge with machines.json to map hostnames to machine IDs
+    const data = await readMachines();
+    const merged = {};
+    for (const m of data.machines) {
+      // Derive tailscale hostname from ssh.host or machine id
+      const tsHost = (m.ssh?.host || m.id.replace("admira-", "")).toLowerCase();
+      const peer = peers[tsHost];
+      merged[m.id] = {
+        id: m.id,
+        name: m.name,
+        tailscale: peer || null,
+        online: peer ? peer.online : false,
+        active: peer ? peer.active : false,
+        ip: peer?.ip || m.ssh?.ip_tailscale || "",
+        lastSeen: peer?.lastSeen || m.lastSeen || "",
+      };
+    }
+    sendJson(response, 200, { ok: true, updatedAt: new Date().toISOString(), machines: merged });
+    return;
+  }
+
   // Watchdog endpoints
   if (request.method === "GET" && url.pathname === "/api/teamwork/watchdog") {
     sendJson(response, 200, { ok: true, ...getWatchdogState() });
@@ -315,7 +350,13 @@ const server = createServer(async (request, response) => {
   await serveStatic(url.pathname, response);
 });
 
-server.listen(PORT, HOST, () => {
+server.listen(PORT, HOST, async () => {
   console.log(`AdmiraNext Team escuchando en http://${HOST}:${PORT}`);
+  console.log("Ejecutando health check de máquinas...");
+  await healthCheckAll();
   startWatchdog(); // Auto-Approve ON por defecto al arrancar
+  // Health check periódico cada 60s
+  setInterval(async () => {
+    try { await healthCheckAll(); } catch (e) { console.error("Health check error:", e.message); }
+  }, 60_000);
 });

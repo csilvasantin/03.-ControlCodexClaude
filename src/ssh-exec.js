@@ -1468,3 +1468,115 @@ export function getWatchdogState() {
     log: watchdogState.log.slice(-20)
   };
 }
+
+// Health check: ping all SSH-enabled machines and update their status in the JSON
+export async function healthCheckAll() {
+  const { readMachines: read, updateMachineSync: sync } = await import("./store.js");
+  const data = await read();
+  const now = new Date().toISOString();
+  const results = [];
+
+  const sshMachines = data.machines.filter((m) => m.ssh?.enabled);
+
+  const checks = sshMachines.map((machine) => {
+    return new Promise((resolve) => {
+      // Try local hostname first, then tailscale
+      const localHost = deriveLocalHostname(machine);
+      const targets = [];
+      if (localHost) targets.push({ useLocal: true, host: localHost });
+      targets.push({ useLocal: false, host: machine.ssh.ip_tailscale || machine.ssh.host });
+
+      let resolved = false;
+      let pending = targets.length;
+
+      for (const t of targets) {
+        if (resolved) { pending--; continue; }
+        const args = ["-i", SSH_IDENTITY, "-o", "ConnectTimeout=4", "-o", "BatchMode=yes"];
+        if (!t.useLocal) {
+          const conn = machine.ssh.connect_tailscale || "";
+          if (conn.includes("ProxyCommand")) {
+            const proxy = conn.match(/-o\s+'([^']+)'/)?.[1] || conn.match(/-o\s+"([^"]+)"/)?.[1];
+            if (proxy) args.push("-o", proxy);
+          }
+        }
+        const user = machine.ssh.user || "csilvasantin";
+        args.push(`${user}@${t.host}`, "echo ok");
+
+        execFile("ssh", args, { timeout: 6_000 }, async (error, stdout) => {
+          if (resolved) { pending--; return; }
+          const alive = !error && stdout?.trim() === "ok";
+          if (alive) {
+            resolved = true;
+            const newStatus = "online";
+            await sync(machine.id, { status: newStatus, note: machine.note, currentFocus: machine.currentFocus });
+            markMachineOnline(machine.id);
+            results.push({ id: machine.id, name: machine.name, status: newStatus });
+            resolve();
+          } else {
+            pending--;
+            if (pending <= 0) {
+              const newStatus = "offline";
+              await sync(machine.id, { status: newStatus, note: machine.note, currentFocus: machine.currentFocus });
+              markMachineFailed(machine.id);
+              results.push({ id: machine.id, name: machine.name, status: newStatus });
+              resolve();
+            }
+          }
+        });
+      }
+    });
+  });
+
+  await Promise.all(checks);
+
+  console.log(`Health check completo: ${results.filter((r) => r.status === "online").length} online, ${results.filter((r) => r.status === "offline").length} offline`);
+  for (const r of results) {
+    console.log(`  ${r.status === "online" ? "✓" : "✗"} ${r.name} → ${r.status}`);
+  }
+
+  return results;
+}
+
+// Get live Tailscale status by parsing `tailscale status --json`
+export function getTailscaleStatus() {
+  return new Promise((resolve) => {
+    execFile("tailscale", ["status", "--json"], { timeout: 5000 }, (error, stdout) => {
+      if (error) { resolve(null); return; }
+      try {
+        const data = JSON.parse(stdout);
+        const peers = {};
+        // Self node
+        if (data.Self) {
+          const self = data.Self;
+          peers[self.HostName?.toLowerCase()] = {
+            hostname: self.HostName,
+            ip: self.TailscaleIPs?.[0] || "",
+            os: self.OS || "",
+            online: true,
+            active: true,
+            lastSeen: new Date().toISOString(),
+            exitNode: false,
+          };
+        }
+        // Peer nodes
+        for (const [, peer] of Object.entries(data.Peer || {})) {
+          const online = peer.Online ?? false;
+          const active = peer.Active ?? false;
+          peers[peer.HostName?.toLowerCase()] = {
+            hostname: peer.HostName,
+            ip: peer.TailscaleIPs?.[0] || "",
+            os: peer.OS || "",
+            online,
+            active,
+            lastSeen: peer.LastSeen || "",
+            curAddr: peer.CurAddr || "",
+            relay: peer.Relay || "",
+            rxBytes: peer.RxBytes || 0,
+            txBytes: peer.TxBytes || 0,
+          };
+        }
+        resolve(peers);
+      } catch { resolve(null); }
+    });
+  });
+}

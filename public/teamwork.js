@@ -19,6 +19,16 @@ const GROUP_LABELS = {
   worker: "Equipo"
 };
 const LIVE_PREVIEW_WINDOW_MS = 10 * 60 * 1000;
+let tailscaleData = {}; // Cache of live Tailscale status per machine ID
+
+function timeAgo(iso) {
+  if (!iso) return "—";
+  const diff = Date.now() - new Date(iso).getTime();
+  if (diff < 60000) return "ahora";
+  if (diff < 3600000) return `hace ${Math.floor(diff / 60000)}m`;
+  if (diff < 86400000) return `hace ${Math.floor(diff / 3600000)}h`;
+  return `hace ${Math.floor(diff / 86400000)}d`;
+}
 
 // Redirect GitHub Pages to Funnel
 if (location.hostname === "csilvasantin.github.io") {
@@ -229,6 +239,26 @@ async function loadHistory() {
   }
 }
 
+async function loadTailscaleStatus() {
+  if (isStaticMode) return;
+  try {
+    const res = await fetch(apiUrl("/api/tailscale-status"), { cache: "no-store" });
+    if (!res.ok) return;
+    const data = await res.json();
+    tailscaleData = data.machines || {};
+    // Merge live status into machines array
+    for (const m of machines) {
+      const ts = tailscaleData[m.id];
+      if (ts) {
+        m.status = ts.online ? (ts.active ? "online" : "idle") : "offline";
+        if (ts.ip) m._tsIp = ts.ip;
+        if (ts.lastSeen) m._tsLastSeen = ts.lastSeen;
+        if (ts.tailscale?.curAddr) m._tsCurAddr = ts.tailscale.curAddr;
+      }
+    }
+  } catch { /* silently fail */ }
+}
+
 async function loadMachines() {
   try {
     const res = await fetch(apiUrl("/api/machines"), { cache: "no-store" });
@@ -236,6 +266,7 @@ async function loadMachines() {
       const data = await res.json();
       machines = data.machines;
       isStaticMode = false;
+      await loadTailscaleStatus();
       syncTopActionVisibility();
       renderMachineApproveList(null);
     } catch {
@@ -300,24 +331,49 @@ function renderMachineRow(m, snapshots) {
   return `
     <div class="tw-machine-row tw-machine-row-${group}" data-id="${m.id}">
       <div class="tw-machine-monitor small" data-monitor="${m.id}">${monitorContent}</div>
+      <div class="tw-machine-body">
       <div class="tw-machine-label">
-        <span class="tw-machine-name">${m.name}</span><br>
-        <span class="tw-machine-member">${m.member} · ${m.platform}</span>
+        <span class="tw-machine-name">${m.name}</span>
+        <span class="tw-status-pill ${m.status || "offline"}">${m.status || "offline"}</span><br>
+        <span class="tw-machine-member">${m.member} · ${m.platform}${m.role ? " · " + m.role : ""}</span>
         ${m.unitType === "worker" ? `<div class="tw-machine-caps"><span class="tw-machine-cap tw-machine-cap-kind">PC</span>${(m.capabilities || []).map((cap) => `<span class="tw-machine-cap">${cap}</span>`).join("")}</div>` : ""}
-        <span class="tw-app-status">
-          ${snap?.claudeState ? `<span class="tw-app-tag claude" title="Claude: ${snap.claudeState}">C</span>` : ""}
-          ${snap?.codexState ? `<span class="tw-app-tag codex" title="Codex: ${snap.codexState}">X</span>` : ""}
+        <span class="tw-info-wrapper">
+          <button class="tw-info-btn" data-info-toggle="${m.id}" title="Info del equipo">ℹ</button>
+          <div class="tw-info-dropdown" data-info-panel="${m.id}">
+            <div class="tw-info-title">
+              <span class="tw-info-status ${m.status || "offline"}"></span>
+              ${m.name}
+              ${m.role ? `<span class="tw-info-badge">${m.role}</span>` : ""}
+            </div>
+            <div class="tw-info-row"><span class="tw-info-key">Operador</span><span class="tw-info-val">${m.member || "—"}</span></div>
+            <div class="tw-info-row"><span class="tw-info-key">Funcion</span><span class="tw-info-val">${m.machineRole || "—"}</span></div>
+            <div class="tw-info-row"><span class="tw-info-key">Plataforma</span><span class="tw-info-val">${m.platform || "—"}</span></div>
+            <div class="tw-info-row"><span class="tw-info-key">Ubicacion</span><span class="tw-info-val">${m.location || "—"}</span></div>
+            <div class="tw-info-row"><span class="tw-info-key">Estado</span><span class="tw-info-val" style="color:${m.status === "online" ? "#2d6a4f" : m.status === "idle" ? "#3e7ea0" : "#8b5b63"}">${m.status || "desconocido"}</span></div>
+            ${m.ssh?.ip_tailscale || m._tsIp ? `<div class="tw-info-row"><span class="tw-info-key">IP Tailscale</span><span class="tw-info-val" style="font-family:monospace;font-size:10px">${m._tsIp || m.ssh.ip_tailscale}</span></div>` : ""}
+            ${m.ssh?.host ? `<div class="tw-info-row"><span class="tw-info-key">SSH</span><span class="tw-info-val tw-ssh-copy" style="font-size:10px;cursor:pointer" title="Clic para copiar" onclick="event.stopPropagation(); navigator.clipboard.writeText('ssh ${m.ssh.user || "csilvasantin"}@${m.ssh.ip_tailscale || m.ssh.host}'); this.textContent='Copiado!'; setTimeout(()=>this.textContent='${m.ssh.user || "csilvasantin"}@${m.ssh.host}',1500)">${m.ssh.user || "csilvasantin"}@${m.ssh.host}</span></div>` : ""}
+            <div class="tw-info-row"><span class="tw-info-key">Ultima vez</span><span class="tw-info-val">${timeAgo(m._tsLastSeen || m.lastSeen)}</span></div>
+            ${snap?.updatedAt ? `<div class="tw-info-row"><span class="tw-info-key">Captura</span><span class="tw-info-val">${timeAgo(snap.updatedAt)}</span></div>` : ""}
+            ${snap?.claudeState || snap?.codexState ? `<div class="tw-info-row"><span class="tw-info-key">Apps</span><span class="tw-info-val">${snap?.claudeState ? '<span style="color:#d63031">C:</span>' + snap.claudeState : ""} ${snap?.codexState ? '<span style="color:#0984e3">X:</span>' + snap.codexState : ""}</span></div>` : ""}
+            ${m.agentProfile ? `<div class="tw-info-row"><span class="tw-info-key">Perfil agente</span><span class="tw-info-val">${m.agentProfile}</span></div>` : ""}
+            ${(m.capabilities || []).length ? `<div class="tw-info-row"><span class="tw-info-key">Capacidades</span><span class="tw-info-val">${m.capabilities.join(", ")}</span></div>` : ""}
+            ${m.currentFocus ? `<div class="tw-info-focus"><div class="tw-info-focus-label">Foco actual</div>${m.currentFocus}</div>` : ""}
+            ${m.note ? `<div class="tw-info-focus"><div class="tw-info-focus-label">Nota</div>${m.note}</div>` : ""}
+          </div>
         </span>
       </div>
-      <input class="tw-machine-input" data-machine="${m.id}" type="text" placeholder="Prompt para ${m.member}..." ${remoteReady ? "" : "disabled"}>
-      <select class="tw-approve-sm" data-machine-target="${m.id}" style="background:var(--panel);color:var(--ink);border:1px solid var(--line);padding:8px 6px;font-size:11px;border-radius:10px;">
-        <option value="claude" ${defaultTarget === "claude" ? "selected" : ""}>Claude</option>
-        <option value="codex" ${defaultTarget === "codex" ? "selected" : ""}>Codex</option>
-        <option value="terminal" ${defaultTarget === "terminal" ? "selected" : ""}>Terminal</option>
-      </select>
-      <button class="tw-machine-send" data-machine-send="${m.id}" ${remoteReady ? "" : "disabled"}>${remoteReady ? "Enviar" : "Pendiente"}</button>
-      <button class="tw-machine-approve" data-machine-approve="${m.id}" ${remoteReady ? "" : "disabled"}>${remoteReady ? "Aprobar" : "Sin canal"}</button>
-      <span class="tw-auto-badge ${remoteReady ? "" : "tw-auto-badge-off"}" data-watchdog-machine="${m.id}">${remoteReady ? "🤖 0" : "offline"}</span>
+      <div class="tw-machine-actions">
+        <input class="tw-machine-input" data-machine="${m.id}" type="text" placeholder="Prompt para ${m.member}..." ${remoteReady ? "" : "disabled"}>
+        <select class="tw-approve-sm" data-machine-target="${m.id}" style="background:var(--panel);color:var(--ink);border:1px solid var(--line);padding:8px 6px;font-size:11px;border-radius:10px;">
+          <option value="claude" ${defaultTarget === "claude" ? "selected" : ""}>Claude</option>
+          <option value="codex" ${defaultTarget === "codex" ? "selected" : ""}>Codex</option>
+          <option value="terminal" ${defaultTarget === "terminal" ? "selected" : ""}>Terminal</option>
+        </select>
+        <button class="tw-machine-send" data-machine-send="${m.id}" ${remoteReady ? "" : "disabled"}>${remoteReady ? "Enviar" : "Pendiente"}</button>
+        <button class="tw-machine-approve" data-machine-approve="${m.id}" ${remoteReady ? "" : "disabled"}>${remoteReady ? "Aprobar" : "Sin canal"}</button>
+        <span class="tw-auto-badge ${m.status === "online" || m.status === "busy" ? "" : "tw-auto-badge-off"}" data-watchdog-machine="${m.id}">${remoteReady ? "🤖 0" : m.status || "offline"}</span>
+      </div>
+      </div>
     </div>`;
 }
 
@@ -346,10 +402,11 @@ function renderMachineApproveList(snapshots) {
     const shouldExpand = items.some((m) => hasLivePreview(m, snapshots));
     const expanded = shouldExpand ? "true" : "false";
     const hidden = shouldExpand ? "" : "hidden";
+    const onlineCount = items.filter((m) => m.status === "online" || m.status === "idle" || m.status === "busy").length;
     sections.push(`
       <section class="tw-group-block tw-group-block-${group}">
         <button class="tw-group-toggle tw-group-${group}" data-group-toggle="${group}" aria-expanded="${expanded}" type="button">
-          <span>${GROUP_LABELS[group] || group}</span>
+          <span>${GROUP_LABELS[group] || group} <span class="tw-group-count">${onlineCount}/${items.length} online</span></span>
           <span class="tw-group-toggle-icon">${shouldExpand ? "−" : "+"}</span>
         </button>
         <div class="tw-group-rows" data-group-panel="${group}" ${hidden}>
@@ -445,6 +502,28 @@ function renderMachineApproveList(snapshots) {
       mon.classList.toggle("small");
       mon.classList.toggle("expanded");
     });
+  });
+
+  // Toggle machine info dropdown
+  machineApproveList.querySelectorAll(".tw-info-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.infoToggle;
+      const panel = machineApproveList.querySelector(`.tw-info-dropdown[data-info-panel="${id}"]`);
+      const wasOpen = panel.classList.contains("open");
+      // Close all open dropdowns first
+      machineApproveList.querySelectorAll(".tw-info-dropdown.open").forEach((p) => p.classList.remove("open"));
+      machineApproveList.querySelectorAll(".tw-info-btn.open").forEach((b) => b.classList.remove("open"));
+      if (!wasOpen) {
+        panel.classList.add("open");
+        btn.classList.add("open");
+      }
+    });
+  });
+  // Close info dropdown when clicking outside
+  document.addEventListener("click", () => {
+    machineApproveList.querySelectorAll(".tw-info-dropdown.open").forEach((p) => p.classList.remove("open"));
+    machineApproveList.querySelectorAll(".tw-info-btn.open").forEach((b) => b.classList.remove("open"));
   });
 
   // Enter to send per-machine
@@ -680,3 +759,5 @@ setTimeout(loadWatchdogStats, 3000);
 setInterval(loadHistory, 10_000);
 setInterval(loadSnapshots, 30_000);
 setInterval(loadWatchdogStats, 15_000);
+// Refresh Tailscale status every 60s (synced with server healthCheck)
+setInterval(async () => { await loadTailscaleStatus(); renderMachineApproveList(null); }, 60_000);
