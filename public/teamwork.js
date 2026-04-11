@@ -687,16 +687,23 @@ function updateSnapshotsInPlace(snapshots) {
   }
 }
 
+let firstSnapshotLoad = true;
 async function loadSnapshots() {
   try {
     const res = await fetch(apiUrl("/api/teamwork/snapshots"), { cache: "no-store" });
     const data = await res.json();
     if (data.ok) {
-      const hasRows = machineApproveList.querySelector(".tw-machine-row");
-      if (hasRows) {
-        updateSnapshotsInPlace(data.snapshots);
-      } else {
+      if (firstSnapshotLoad) {
+        // First load: full re-render to expand panels with live previews
+        firstSnapshotLoad = false;
         renderMachineApproveList(data.snapshots);
+      } else {
+        const hasRows = machineApproveList.querySelector(".tw-machine-row");
+        if (hasRows) {
+          updateSnapshotsInPlace(data.snapshots);
+        } else {
+          renderMachineApproveList(data.snapshots);
+        }
       }
     }
   } catch {
