@@ -192,6 +192,21 @@ function renderHistory(entries) {
   }
 
   historyList.innerHTML = entries.map((e) => {
+    // Approval detection / auto-approval entries
+    if (e.type === "approval-detected" || e.type === "auto-approved") {
+      const icon = e.type === "auto-approved" ? "🤖" : "⚠️";
+      const label = e.type === "auto-approved" ? "Auto-aprobado" : "Aprobación pendiente";
+      const color = e.type === "auto-approved" ? "#2d6a4f" : "#e74c3c";
+      const targetBadge = e.target === "claude" ? '<span style="background:#d63031;color:#fff;padding:1px 6px;border-radius:4px;font-size:10px">Claude</span>' : '<span style="background:#0984e3;color:#fff;padding:1px 6px;border-radius:4px;font-size:10px">Codex</span>';
+      return `
+        <div class="tw-entry" style="border-left:3px solid ${color}">
+          <div class="tw-entry-header">
+            <span class="tw-entry-machine">${icon} ${e.machine} ${targetBadge}</span>
+            <span class="tw-entry-prompt" style="color:${color};font-weight:600">${label}</span>
+            <span class="tw-entry-time">${formatTime(e.sentAt)}</span>
+          </div>
+        </div>`;
+    }
     const captureHtml = e.captureId
       ? `<div class="tw-terminal" id="capture-${e.captureId}"><span class="tw-terminal-loading">Capturando terminal...</span></div>`
       : "";

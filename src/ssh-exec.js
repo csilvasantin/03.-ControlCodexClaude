@@ -4,6 +4,13 @@ import { writeFileSync, unlinkSync } from "node:fs";
 import { hostname, homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { readMachines, updateMachineStatus } from "./store.js";
+import { addEntry } from "./teamwork-store.js";
+
+function addApprovalHistoryEntry(machine, target, action) {
+  const label = action === "auto-approved" ? "🤖 Auto-aprobado" : "⚠️ Aprobación pendiente detectada";
+  const entry = addEntry(machine.id, machine.name, label, true, null, null, target);
+  entry.type = action === "auto-approved" ? "auto-approved" : "approval-detected";
+}
 
 const SSH_IDENTITY = join(homedir(), ".ssh", "admiranext_ed25519");
 const WINDOWS_SCREENSHOT_PYTHON = join(homedir(), "Documents", "Codex", "ClaudeBot", ".venv", "Scripts", "python.exe");
@@ -1588,25 +1595,29 @@ async function watchdogCheck() {
       let claudeApproved = false;
       let codexApproved = false;
 
-      // --- OCR DETECTION on remote screen ---
+      // --- OCR DETECTION on screenshots from screen-agents ---
       try {
         const ocrResult = await ocrDetectApproval(machine);
         if (ocrResult.claudePending) {
           mState.claudeButtons = "OCR:approval-detected";
           sendTelegramAlert(machine.name, "claude");
           playApprovalSound();
+          addApprovalHistoryEntry(machine, "claude", "detected");
           if (watchdogState.autoApprove) {
             await autoApprove(machine, "claude", mState);
             claudeApproved = true;
+            addApprovalHistoryEntry(machine, "claude", "auto-approved");
           }
         }
         if (ocrResult.codexPending) {
           mState.codexButtons = "OCR:approval-detected";
           sendTelegramAlert(machine.name, "codex");
           playApprovalSound();
+          addApprovalHistoryEntry(machine, "codex", "detected");
           if (watchdogState.autoApprove) {
             await autoApprove(machine, "codex", mState);
             codexApproved = true;
+            addApprovalHistoryEntry(machine, "codex", "auto-approved");
           }
         }
       } catch { /* OCR failed, continue with other detection */ }
