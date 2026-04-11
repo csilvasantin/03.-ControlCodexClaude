@@ -1141,7 +1141,7 @@ const CODEX_APPROVAL_PATTERNS = [
 
 const watchdogState = {
   enabled: true,     // scanning always ON (detects pending approvals for alerts)
-  autoApprove: false, // auto-approve OFF by default (user toggles from UI)
+  autoApprove: true, // auto-approve ON by default
   perMachine: {},    // { [machineId]: { enabled, claudeCount, codexCount, lastApproval, lastTarget } }
   intervalId: null,
   log: []            // last 50 auto-approvals for debugging
@@ -1150,7 +1150,7 @@ const watchdogState = {
 // ─── TELEGRAM ALERTS ──────────────────────────────────────────────────
 const TELEGRAM_BOT_TOKEN = "8637786558:AAHgUEv3pmfowsSt1lw2b1k_ORUXWtBsXV8";
 const TELEGRAM_CHAT_ID = "-1003800381744";
-let telegramAlertsEnabled = false;
+let telegramAlertsEnabled = true;
 const telegramAlertCooldown = new Map(); // machineId:target → timestamp
 
 export function setTelegramEnabled(enabled) { telegramAlertsEnabled = enabled; }
