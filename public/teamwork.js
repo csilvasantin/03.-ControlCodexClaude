@@ -783,7 +783,27 @@ function updateWatchdogBadges() {
       }
     }
   });
+  updateApproveButtonCounters();
   checkPendingApprovals();
+}
+
+function updateApproveButtonCounters() {
+  let claudeActive = 0;
+  let codexActive = 0;
+
+  for (const [, stats] of Object.entries(watchdogStats)) {
+    if (!stats) continue;
+    const cs = stats.claudeState;
+    const xs = stats.codexState;
+    // Count machines with the app open (not OFF, not no-window)
+    if (cs !== null && cs !== undefined && cs !== "no-window" && cs !== "OFF") claudeActive++;
+    if (xs !== null && xs !== undefined && xs !== "no-window" && xs !== "OFF") codexActive++;
+  }
+
+  const claudeBtn = document.querySelector("#approveClaudeBtn");
+  const codexBtn = document.querySelector("#approveCodexBtn");
+  if (claudeBtn) claudeBtn.textContent = claudeActive > 0 ? `Claude (${claudeActive})` : "Claude";
+  if (codexBtn) codexBtn.textContent = codexActive > 0 ? `Codex (${codexActive})` : "Codex";
 }
 
 function checkPendingApprovals() {
@@ -795,15 +815,16 @@ function checkPendingApprovals() {
 
   for (const [machineId, stats] of Object.entries(watchdogStats)) {
     if (!stats) continue;
+    const machine = machines.find((m) => m.id === machineId);
+    const mName = machine?.name || machineId;
+
     // Check if Claude has approval buttons detected
     if (stats.claudeButtons && stats.claudeButtons.length > 0) {
-      const machine = machines.find((m) => m.id === machineId);
-      if (machine) pendingClaude.push(machine.name || machineId);
+      if (!pendingClaude.includes(mName)) pendingClaude.push(mName);
     }
     // Check claudeState for terminal pending
     if (stats.claudeState && stats.claudeState.includes("PENDING")) {
-      const machine = machines.find((m) => m.id === machineId);
-      if (machine && !pendingClaude.includes(machine.name || machineId)) pendingClaude.push(machine.name || machineId);
+      if (!pendingClaude.includes(mName)) pendingClaude.push(mName);
     }
     // Check codexState for pending
     if (stats.codexState && stats.codexState.includes("PENDING")) {
