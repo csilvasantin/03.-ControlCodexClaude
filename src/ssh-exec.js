@@ -1131,31 +1131,37 @@ const telegramAlertCooldown = new Map(); // machineId:target → timestamp
 export function setTelegramEnabled(enabled) { telegramAlertsEnabled = enabled; }
 export function getTelegramEnabled() { return telegramAlertsEnabled; }
 
-// Fast approval detection — scans only button names in Claude/Codex windows
+// OCR approval detection on screenshot buffers received from screen-agents
+// Tesseract 5.5.2 on macOS has a bug with /tmp/ paths — must use relative paths
 async function ocrDetectApproval(machine) {
-  // This reuses the existing detectClaudeApprovalButtons + detectCodexApproval
-  // but combines results into a simple pending/not-pending answer
-  let claudePending = false;
-  let codexPending = false;
-
-  const apps = parseAppsState(await captureAllAppsState(machine));
-
-  if (isActiveDesktopApp(apps.claude)) {
-    const buttons = await detectClaudeApprovalButtons(machine);
-    if (hasClaudeToolApproval(buttons)) claudePending = true;
+  const buf = imageBuffers.get(machine.id);
+  if (!buf || buf[0] !== 0xff || buf[1] !== 0xd8) {
+    return { claudePending: false, codexPending: false };
   }
 
-  if (isActiveDesktopApp(apps.codex)) {
-    const codexText = await detectCodexApproval(machine);
-    if (hasCodexApproval(codexText)) codexPending = true;
-  }
+  return new Promise((resolve) => {
+    const filename = `ocr_${machine.id}_${Date.now()}.jpg`;
+    const cwd = import.meta.dirname || process.cwd();
+    const filepath = join(cwd, filename);
+    try {
+      writeFileSync(filepath, buf);
+    } catch { resolve({ claudePending: false, codexPending: false }); return; }
 
-  // Also check terminal for Claude Code / Codex CLI approvals
-  const termResult = await detectTerminalApproval(machine);
-  if (termResult.includes("CLAUDE_TERM:PENDING")) claudePending = true;
-  if (termResult.includes("CODEX_TERM:PENDING")) codexPending = true;
-
-  return { claudePending, codexPending };
+    execFile("/opt/homebrew/bin/tesseract", [filename, "stdout"], { timeout: 15000, cwd }, (error, stdout) => {
+      try { unlinkSync(filepath); } catch {}
+      if (error || !stdout) { resolve({ claudePending: false, codexPending: false }); return; }
+      const text = stdout.toLowerCase();
+      const approvalKeywords = ["allow", "permitir", "permitir una vez", "allow once", "always allow",
+        "deny", "denegar", "approve", "accept", "confirm", "tool use", "y/n", "aceptar"];
+      const hasApproval = approvalKeywords.some((kw) => text.includes(kw));
+      const isClaude = text.includes("claude") || text.includes("anthropic") || text.includes("permitir que claude");
+      const isCodex = text.includes("codex") || text.includes("openai");
+      resolve({
+        claudePending: hasApproval && (isClaude || !isCodex),
+        codexPending: hasApproval && isCodex
+      });
+    });
+  });
 }
 
 // Copy an image file to a remote machine via SCP
