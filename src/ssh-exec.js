@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { readFile, unlink } from "node:fs/promises";
 import { hostname, homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import { readMachines } from "./store.js";
+import { readMachines, updateMachineStatus } from "./store.js";
 
 const SSH_IDENTITY = join(homedir(), ".ssh", "admiranext_ed25519");
 const WINDOWS_SCREENSHOT_PYTHON = join(homedir(), "Documents", "Codex", "ClaudeBot", ".venv", "Scripts", "python.exe");
@@ -794,7 +794,10 @@ $title = New-Object System.Text.StringBuilder 1024
   }
   if (isLocalMachine(machine)) {
     const { error, stdout } = await execLocal(script);
-    return error ? null : stdout?.trim() || null;
+    if (!error && stdout?.trim()) {
+      return stdout.trim();
+    }
+    return "Local activo — sin sesion grafica";
   }
 
   const remoteCmd = `osascript -e 'tell application "System Events"' -e 'set frontApp to name of first process whose frontmost is true' -e 'try' -e 'set winName to name of front window of first process whose frontmost is true' -e 'on error' -e 'set winName to "sin ventana"' -e 'end try' -e 'return frontApp & " — " & winName' -e 'end tell'`;
@@ -809,11 +812,29 @@ $title = New-Object System.Text.StringBuilder 1024
     });
   }
 
+  function attemptReachableFallback(useLocal) {
+    return new Promise((resolve_) => {
+      const sshArgs = buildSshArgs(machine, useLocal);
+      sshArgs.push("printf 'SSH activo — sin sesion grafica'");
+      execFile("ssh", sshArgs, { timeout: 8_000 }, (error, stdout) => {
+        resolve_(error ? null : stdout?.trim() || null);
+      });
+    });
+  }
+
   if (deriveLocalHostname(machine)) {
     const r = await attempt(true);
     if (r) return r;
   }
-  return attempt(false);
+  const remote = await attempt(false);
+  if (remote) return remote;
+
+  if (deriveLocalHostname(machine)) {
+    const localReachable = await attemptReachableFallback(true);
+    if (localReachable) return localReachable;
+  }
+
+  return attemptReachableFallback(false);
 }
 
 // Capture all 3 displays of local Mac Mini in visual order: left→center→right
@@ -892,11 +913,20 @@ export async function refreshAllSnapshots() {
         captureAllAppsState(machine)
       ]);
 
-      if (!snap && !appsRaw && !isLocalMachine(machine)) {
+      const reachable = snap || (appsRaw && appsRaw.trim());
+      if (!reachable && !isLocalMachine(machine)) {
         markMachineFailed(machine.id);
-        return; // offline
+        if (machine.status !== "offline") {
+          console.log(`[status] ${machine.id} → offline`);
+          updateMachineStatus(machine.id, "offline").catch((e) => console.error(`[status] error offline ${machine.id}:`, e));
+        }
+        return;
       }
       markMachineOnline(machine.id);
+      if (machine.status === "offline") {
+        console.log(`[status] ${machine.id} → online`);
+        updateMachineStatus(machine.id, "online").catch((e) => console.error(`[status] error online ${machine.id}:`, e));
+      }
 
       const apps = parseAppsState(appsRaw);
       const existing = machineSnapshots.get(machine.id) || {};
@@ -913,7 +943,84 @@ export async function refreshAllSnapshots() {
 
 // Start periodic refresh
 refreshAllSnapshots();
-setInterval(refreshAllSnapshots, 30_000);
+setInterval(refreshAllSnapshots, 10_000);
+
+// ─── POWER CONTROL: sleep / wake ──────────────────────────────────────
+
+// MAC addresses para Wake-on-LAN (interfaz en0)
+const WOL_MACS = {
+  "admira-macbookair16":      "fe:e3:3e:4d:b6:70",
+  "admira-macbookairplata":   "c6:87:57:bd:78:74",
+  "admira-macbook-carla":     "b2:ad:f6:de:d7:0e",
+  "admira-macbookairazul":    "a6:57:10:7e:31:dc",
+  "admira-macbookairblanco":  "f6:5e:7e:9d:9b:ca",
+  "admira-macbookpronegro14": "92:a2:4f:70:35:c7",
+  "admira-macmini":           "",
+  "admira-macbookairluna":    "",
+};
+
+function sendWol(macAddress) {
+  const hexMac = macAddress.replace(/:/g, "");
+  const script = [
+    "import socket,sys",
+    "mac=bytes.fromhex(sys.argv[1])",
+    "magic=b'\\xff'*6+mac*16",
+    "s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)",
+    "s.setsockopt(socket.SOL_SOCKET,socket.SO_BROADCAST,1)",
+    "s.sendto(magic,('255.255.255.255',9))",
+    "s.sendto(magic,('255.255.255.255',7))",
+    "s.close()",
+    "print('ok')",
+  ].join(";");
+  return new Promise((resolve, reject) => {
+    execFile("python3", ["-c", script, hexMac], { timeout: 5000 }, (error) => {
+      if (error) reject(error);
+      else resolve();
+    });
+  });
+}
+
+export async function sleepMachine(machine) {
+  if (!machine.ssh?.enabled || !machine.ssh?.ip_tailscale) {
+    return { ok: false, error: "Sin SSH configurado" };
+  }
+  const sshArgs = buildSshArgs(machine, false);
+  // Usar displaysleepnow en vez de sleepnow: apaga pantalla pero mantiene
+  // WiFi y SSH activos, permitiendo wake remoto con caffeinate -u
+  return new Promise((resolve) => {
+    execFile("ssh", [...sshArgs, "pmset displaysleepnow"], { timeout: 8000 }, (error) => {
+      if (error) {
+        resolve({ ok: false, error: error.message?.slice(0, 120) || "SSH error" });
+      } else {
+        resolve({ ok: true, message: "Display sleep enviado" });
+      }
+    });
+  });
+}
+
+export async function wakeMachine(machine) {
+  const mac = WOL_MACS[machine.id] || machine.wol_mac || "";
+  if (!mac) {
+    return { ok: false, error: `Sin MAC address para ${machine.id}` };
+  }
+  try {
+    await sendWol(mac);
+    // Esperar a que despierte y encender la pantalla con caffeinate
+    setTimeout(() => {
+      const user = machine.ssh?.user || "csilvasantin";
+      const ip = machine.ssh?.ip_tailscale || machine.ssh?.host;
+      if (ip) {
+        execFile("ssh", [
+          "-o", "ConnectTimeout=10", "-o", "StrictHostKeyChecking=no",
+          `${user}@${ip}`, "caffeinate -u -t 5"
+        ], { timeout: 20000 }, () => {});
+      }
+    }, 8000);
+    return { ok: true, message: `WoL enviado a ${mac}` };
+  } catch (e) {
+    return { ok: false, error: e.message?.slice(0, 120) || "WoL error" };
+  }
+}
 
 export function resolveMachineName(machines, input) {
   const q = input.toLowerCase().replace(/[\s-_]+/g, "");

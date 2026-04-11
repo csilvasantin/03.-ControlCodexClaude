@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { extname, resolve } from "node:path";
 
 import { createMachineEntry, readMachines, updateMachineStatus, updateMachineSync } from "./store.js";
-import { sendPromptToMachine, resolveMachineName, getCapture, getImageBuffer, approveAll, approveMachine, getAllSnapshots, getReachableMachines, getWatchdogState, setWatchdogEnabled, setMachineWatchdog, sendOnboardingToAll, startWatchdog, healthCheckAll, getTailscaleStatus } from "./ssh-exec.js";
+import { sendPromptToMachine, resolveMachineName, getCapture, getImageBuffer, approveAll, approveMachine, getAllSnapshots, getReachableMachines, getWatchdogState, setWatchdogEnabled, setMachineWatchdog, sendOnboardingToAll, startWatchdog, healthCheckAll, getTailscaleStatus, sleepMachine, wakeMachine } from "./ssh-exec.js";
 import { addEntry, getHistory } from "./teamwork-store.js";
 
 const PORT = 3030;
@@ -14,7 +14,11 @@ const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".js": "application/javascript; charset=utf-8",
-  ".json": "application/json; charset=utf-8"
+  ".json": "application/json; charset=utf-8",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".svg": "image/svg+xml; charset=utf-8"
 };
 const VALID_STATUSES = new Set(["online", "idle", "busy", "offline", "maintenance"]);
 
@@ -113,6 +117,35 @@ const server = createServer(async (request, response) => {
     }
   }
 
+  if (request.method === "POST" && url.pathname.startsWith("/api/machines/") && url.pathname.endsWith("/power")) {
+    const parts = url.pathname.split("/");
+    const id = parts[3];
+    const rawBody = await readRequestBody(request);
+    const parsed = rawBody ? JSON.parse(rawBody) : {};
+    const action = parsed.action;
+
+    if (action !== "sleep" && action !== "wake") {
+      sendJson(response, 400, { error: "action debe ser 'sleep' o 'wake'" });
+      return;
+    }
+
+    const data = await readMachines();
+    const machine = data.machines.find((m) => m.id === id);
+    if (!machine) {
+      sendJson(response, 404, { error: "Machine not found" });
+      return;
+    }
+
+    const result = action === "sleep" ? await sleepMachine(machine) : await wakeMachine(machine);
+
+    if (result.ok && action === "sleep") {
+      await updateMachineStatus(id, "offline", "Sleep enviado desde dashboard");
+    }
+
+    sendJson(response, result.ok ? 200 : 502, { ...result, machine: id, action });
+    return;
+  }
+
   if (request.method === "POST" && url.pathname.startsWith("/api/machines/") && url.pathname.endsWith("/status")) {
     const parts = url.pathname.split("/");
     const id = parts[3];
@@ -133,6 +166,51 @@ const server = createServer(async (request, response) => {
     }
 
     sendJson(response, 200, { ok: true, machine: updated });
+    return;
+  }
+
+  // Power control: sleep/wake machines via SSH
+  if (request.method === "POST" && url.pathname.startsWith("/api/machines/") && url.pathname.endsWith("/power")) {
+    const parts = url.pathname.split("/");
+    const id = parts[3];
+    const rawBody = await readRequestBody(request);
+    const parsed = rawBody ? JSON.parse(rawBody) : {};
+    const action = parsed.action; // "sleep" or "wake"
+
+    if (!action || !["sleep", "wake"].includes(action)) {
+      sendJson(response, 400, { error: "Invalid action. Use 'sleep' or 'wake'" });
+      return;
+    }
+
+    // Protect Mac Mini from accidental sleep
+    if (id === "admira-macmini") {
+      sendJson(response, 403, { error: "Cannot sleep the central server" });
+      return;
+    }
+
+    // Resolve machine SSH details
+    const machines = await readMachines();
+    const machine = machines.machines?.find(m => m.id === id);
+    if (!machine?.ssh?.ip_tailscale) {
+      sendJson(response, 404, { error: "Machine not found or no SSH config" });
+      return;
+    }
+
+    const user = machine.ssh.user || "csilvasantin";
+    const ip = machine.ssh.ip_tailscale;
+    const cmd = action === "sleep" ? "pmset sleepnow" : "caffeinate -u -t 5";
+
+    const { execFile } = await import("node:child_process");
+    const result = await new Promise((resolve_) => {
+      execFile("ssh", [
+        "-o", "ConnectTimeout=5", "-o", "StrictHostKeyChecking=no",
+        `${user}@${ip}`, cmd
+      ], { timeout: 15000 }, (err, stdout, stderr) => {
+        resolve_({ ok: !err, stdout, stderr: stderr || err?.message });
+      });
+    });
+
+    sendJson(response, 200, { ok: result.ok, machine: id, action, detail: result.stdout || result.stderr });
     return;
   }
 
