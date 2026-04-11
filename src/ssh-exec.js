@@ -1078,8 +1078,8 @@ const watchdogState = {
 };
 
 // ─── TELEGRAM ALERTS ──────────────────────────────────────────────────
-const TELEGRAM_BOT_TOKEN = "8753533419:AAHrZSbJhYZu4EZjCw7HSFuv4p-vactPTvc";
-const TELEGRAM_CHAT_ID = "-1003841065210";
+const TELEGRAM_BOT_TOKEN = "8637786558:AAHgUEv3pmfowsSt1lw2b1k_ORUXWtBsXV8";
+const TELEGRAM_CHAT_ID = "-1003800381744";
 let telegramAlertsEnabled = false;
 const telegramAlertCooldown = new Map(); // machineId:target → timestamp
 
