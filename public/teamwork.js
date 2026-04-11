@@ -897,6 +897,13 @@ async function loadTelegramInbox() {
         </div>
       </div>
     `).join("");
+    // Auto-load last message into prompt field
+    const last = data.messages[data.messages.length - 1];
+    const input = document.querySelector("#quickInput");
+    if (last?.text && input && !input.value) {
+      input.value = last.text;
+      input.placeholder = `📱 ${last.from}: listo para enviar`;
+    }
   } catch { /* ignore */ }
 }
 
