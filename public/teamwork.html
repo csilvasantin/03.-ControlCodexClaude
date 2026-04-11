@@ -375,6 +375,59 @@
       .tw-info-status.offline { background: #999; }
       .tw-info-status.maintenance { background: #6c5ce7; }
 
+      /* Approval alert overlay */
+      .tw-approval-alert {
+        display: none;
+        position: fixed;
+        top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 9999;
+        min-width: 340px; max-width: 480px;
+        padding: 28px 32px;
+        border-radius: 20px;
+        background: rgba(10, 10, 20, 0.96);
+        border: 2px solid #e74c3c;
+        box-shadow: 0 0 60px rgba(231, 76, 60, 0.4), 0 20px 60px rgba(0,0,0,0.6);
+        text-align: center;
+        animation: tw-alert-pulse 1.5s ease-in-out infinite;
+      }
+      .tw-approval-alert.visible { display: block; }
+      @keyframes tw-alert-pulse {
+        0%, 100% { box-shadow: 0 0 60px rgba(231, 76, 60, 0.4), 0 20px 60px rgba(0,0,0,0.6); }
+        50% { box-shadow: 0 0 80px rgba(231, 76, 60, 0.7), 0 20px 60px rgba(0,0,0,0.6); }
+      }
+      .tw-approval-alert .tw-alert-icon { font-size: 2.5rem; margin-bottom: 8px; }
+      .tw-approval-alert .tw-alert-title {
+        font-size: 1.1rem; font-weight: 800; color: #fff; margin-bottom: 6px;
+      }
+      .tw-approval-alert .tw-alert-machines {
+        font-size: 0.85rem; color: #ccc; margin-bottom: 16px; line-height: 1.6;
+      }
+      .tw-approval-alert .tw-alert-machine-item {
+        display: inline-flex; align-items: center; gap: 4px;
+        background: rgba(255,255,255,0.08); padding: 3px 10px;
+        border-radius: 8px; margin: 3px; font-size: 12px;
+      }
+      .tw-approval-alert .tw-alert-machine-item .claude-tag { color: #e74c3c; font-weight: 700; }
+      .tw-approval-alert .tw-alert-machine-item .codex-tag { color: #0984e3; font-weight: 700; }
+      .tw-approval-alert .tw-alert-actions {
+        display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;
+      }
+      .tw-approval-alert .tw-alert-btn {
+        padding: 10px 24px; border-radius: 12px; border: none;
+        font: inherit; font-size: 14px; font-weight: 700;
+        cursor: pointer; transition: opacity 0.2s;
+      }
+      .tw-approval-alert .tw-alert-btn:hover { opacity: 0.85; }
+      .tw-alert-btn-claude { background: linear-gradient(135deg, #e74c3c, #c0392b); color: #fff; }
+      .tw-alert-btn-codex { background: linear-gradient(135deg, #0984e3, #2471a3); color: #fff; }
+      .tw-alert-btn-dismiss { background: rgba(255,255,255,0.1); color: #888; }
+      .tw-approval-backdrop {
+        display: none; position: fixed; inset: 0; z-index: 9998;
+        background: rgba(0,0,0,0.5); backdrop-filter: blur(3px);
+      }
+      .tw-approval-backdrop.visible { display: block; }
+
       .tw-machines-approve {
         margin-top: 18px;
         padding: 24px;
@@ -805,7 +858,7 @@
       <header class="hero">
         <div class="hero-inner">
           <div class="hero-text">
-            <p class="eyebrow">Control de equipo — v26.11.04.3</p>
+            <p class="eyebrow">Control de equipo — v26.11.04.4</p>
             <h1>AdmiraNext Control</h1>
             <p class="subtitle">Opera por separado el Consejo de Administracion en Mac y el Equipo en PC desde un mismo panel.</p>
           </div>
@@ -865,8 +918,20 @@
       </section>
     </main>
 
+      <div class="tw-approval-backdrop" id="approvalBackdrop"></div>
+      <div class="tw-approval-alert" id="approvalAlert">
+        <div class="tw-alert-icon">⚠️</div>
+        <div class="tw-alert-title">Aprobación pendiente</div>
+        <div class="tw-alert-machines" id="approvalMachineList"></div>
+        <div class="tw-alert-actions">
+          <button class="tw-alert-btn tw-alert-btn-claude" id="alertApproveClaude" onclick="alertApprove('claude')">Claude</button>
+          <button class="tw-alert-btn tw-alert-btn-codex" id="alertApproveCodex" onclick="alertApprove('codex')">Codex</button>
+          <button class="tw-alert-btn tw-alert-btn-dismiss" onclick="dismissApprovalAlert()">Ignorar</button>
+        </div>
+      </div>
+
       <footer style="text-align:center;padding:24px 0 8px;color:var(--muted);font-size:12px;">
-          AdmiraNext Control v26.11.04.3 — 11/4/2026
+          AdmiraNext Control v26.11.04.4 — 11/4/2026
       </footer>
 
       <script src="./teamwork.js?v=20260331-11" type="module"></script>

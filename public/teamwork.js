@@ -733,6 +733,9 @@ async function loadWatchdogStats() {
   } catch { /* ignore */ }
 }
 
+let alertDismissed = false;
+let alertDismissedAt = 0;
+
 function updateWatchdogBadges() {
   document.querySelectorAll(".tw-auto-badge").forEach((badge) => {
     const machineId = badge.dataset.watchdogMachine;
@@ -750,7 +753,87 @@ function updateWatchdogBadges() {
       }
     }
   });
+  checkPendingApprovals();
 }
+
+function checkPendingApprovals() {
+  // Don't show if dismissed less than 30s ago
+  if (alertDismissed && Date.now() - alertDismissedAt < 30000) return;
+
+  const pendingClaude = [];
+  const pendingCodex = [];
+
+  for (const [machineId, stats] of Object.entries(watchdogStats)) {
+    if (!stats) continue;
+    // Check if Claude has approval buttons detected
+    if (stats.claudeButtons && stats.claudeButtons.length > 0) {
+      const machine = machines.find((m) => m.id === machineId);
+      if (machine) pendingClaude.push(machine.name || machineId);
+    }
+    // Check claudeState for terminal pending
+    if (stats.claudeState && stats.claudeState.includes("PENDING")) {
+      const machine = machines.find((m) => m.id === machineId);
+      if (machine && !pendingClaude.includes(machine.name || machineId)) pendingClaude.push(machine.name || machineId);
+    }
+    // Check codexState for pending
+    if (stats.codexState && stats.codexState.includes("PENDING")) {
+      const machine = machines.find((m) => m.id === machineId);
+      if (machine) pendingCodex.push(machine.name || machineId);
+    }
+  }
+
+  const alert = document.getElementById("approvalAlert");
+  const backdrop = document.getElementById("approvalBackdrop");
+  const machineList = document.getElementById("approvalMachineList");
+
+  if (pendingClaude.length === 0 && pendingCodex.length === 0) {
+    alert.classList.remove("visible");
+    backdrop.classList.remove("visible");
+    alertDismissed = false;
+    return;
+  }
+
+  let html = "";
+  for (const name of pendingClaude) {
+    html += `<span class="tw-alert-machine-item"><span class="claude-tag">C</span> ${name}</span>`;
+  }
+  for (const name of pendingCodex) {
+    html += `<span class="tw-alert-machine-item"><span class="codex-tag">X</span> ${name}</span>`;
+  }
+  machineList.innerHTML = html;
+
+  // Show/hide specific approve buttons
+  document.getElementById("alertApproveClaude").style.display = pendingClaude.length ? "" : "none";
+  document.getElementById("alertApproveCodex").style.display = pendingCodex.length ? "" : "none";
+
+  alert.classList.add("visible");
+  backdrop.classList.add("visible");
+}
+
+window.dismissApprovalAlert = function() {
+  document.getElementById("approvalAlert").classList.remove("visible");
+  document.getElementById("approvalBackdrop").classList.remove("visible");
+  alertDismissed = true;
+  alertDismissedAt = Date.now();
+};
+
+window.alertApprove = async function(target) {
+  const btn = document.getElementById(target === "claude" ? "alertApproveClaude" : "alertApproveCodex");
+  btn.textContent = "...";
+  btn.disabled = true;
+  try {
+    await fetch(apiUrl("/api/teamwork/approve"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ target, onlyPending: true })
+    });
+  } catch { /* ignore */ }
+  btn.disabled = false;
+  btn.textContent = target === "claude" ? "Claude" : "Codex";
+  dismissApprovalAlert();
+  setTimeout(loadSnapshots, 4000);
+  setTimeout(loadWatchdogStats, 5000);
+};
 
 // ─── Init ──────────────────────────────────────────────────────────
 
