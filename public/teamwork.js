@@ -797,23 +797,32 @@ function updateWatchdogBadges() {
 function updateApproveButtonCounters() {
   let claudeActive = 0;
   let codexActive = 0;
+  let claudePending = 0;
+  let codexPending = 0;
 
   for (const [, stats] of Object.entries(watchdogStats)) {
     if (!stats) continue;
     const cs = stats.claudeState;
     const xs = stats.codexState;
-    // Open = any state except null, undefined, "no-window", "OFF"
-    // "" (empty) = app open but title unreadable (Claude Desktop) = ACTIVE
+    const cb = stats.claudeButtons || "";
+    const ts = stats.terminalState || "";
+
     const csOpen = cs !== null && cs !== undefined && cs !== "no-window" && cs !== "OFF";
     const xsOpen = xs !== null && xs !== undefined && xs !== "no-window" && xs !== "OFF";
     if (csOpen) claudeActive++;
     if (xsOpen) codexActive++;
+
+    // Pending = approval buttons detected or PENDING in state
+    if (cb.length > 0 || (cs && cs.includes("PENDING")) || ts.includes("CLAUDE_TERM:PENDING")) claudePending++;
+    if ((xs && xs.includes("PENDING")) || ts.includes("CODEX_TERM:PENDING")) codexPending++;
   }
 
   const claudeBtn = document.querySelector("#approveClaudeBtn");
   const codexBtn = document.querySelector("#approveCodexBtn");
-  if (claudeBtn) claudeBtn.textContent = `Claude (${claudeActive})`;
-  if (codexBtn) codexBtn.textContent = `Codex (${codexActive})`;
+  const cp = claudePending > 0 ? `(${claudePending}) ` : "";
+  const xp = codexPending > 0 ? `(${codexPending}) ` : "";
+  if (claudeBtn) claudeBtn.textContent = `${cp}Claude (${claudeActive})`;
+  if (codexBtn) codexBtn.textContent = `${xp}Codex (${codexActive})`;
 }
 
 function checkPendingApprovals() {
