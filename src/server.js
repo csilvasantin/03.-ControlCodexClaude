@@ -312,7 +312,8 @@ const server = createServer(async (request, response) => {
     const rawBody = await readRequestBody(request);
     const parsed = rawBody ? JSON.parse(rawBody) : {};
     const target = parsed.target || "claude";
-    const results = await approveAll(target);
+    const onlyPending = parsed.onlyPending !== false; // default true
+    const results = await approveAll(target, onlyPending);
     sendJson(response, 200, { ok: true, results });
     return;
   }

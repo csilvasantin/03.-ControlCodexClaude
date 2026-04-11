@@ -521,12 +521,24 @@ function sendKeystroke(machine, useLocal, appName) {
   });
 }
 
-export async function approveAll(target) {
+export async function approveAll(target, onlyPending = false) {
   const data = await readMachines();
   const appName = TARGET_APPS[target] || TARGET_APPS.claude;
 
   // ONLY send to reachable (online) machines — skip offline immediately
-  const automationEnabled = data.machines.filter((m) => isAutomationReady(m));
+  let automationEnabled = data.machines.filter((m) => isAutomationReady(m));
+
+  // If onlyPending, filter to machines where the target app is actually open
+  if (onlyPending) {
+    automationEnabled = automationEnabled.filter((m) => {
+      const snapshot = machineSnapshots.get(m.id);
+      if (!snapshot) return false;
+      if (target === "claude") return isActiveDesktopApp(snapshot.claudeState);
+      if (target === "codex") return isActiveDesktopApp(snapshot.codexState);
+      return true;
+    });
+  }
+
   const reachable = automationEnabled.filter((m) => hasWindowsAutomationChannel(m) || isReachable(m) || isLocalMachine(m));
   const unreachable = automationEnabled.filter((m) => !hasWindowsAutomationChannel(m) && !isReachable(m) && !isLocalMachine(m));
 

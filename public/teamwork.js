@@ -546,7 +546,7 @@ const approveCodexResult = document.querySelector("#approveCodexResult");
 
 async function approveAll(target, btn, resultEl) {
   btn.disabled = true;
-  btn.textContent = "Aprobando...";
+  btn.textContent = "...";
   resultEl.textContent = "";
   resultEl.className = "tw-approve-result";
 
@@ -554,28 +554,30 @@ async function approveAll(target, btn, resultEl) {
     const res = await fetch(apiUrl("/api/teamwork/approve"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ target })
+      body: JSON.stringify({ target, onlyPending: true })
     });
     const data = await res.json();
     const okList = data.results.filter((r) => r.ok);
     const failList = data.results.filter((r) => !r.ok && !r.skipped);
     const skipped = data.results.filter((r) => r.skipped);
 
-    // Visual feedback with icons
     const parts = [];
     for (const r of okList) parts.push(`✅ ${r.machine}`);
     for (const r of failList) parts.push(`❌ ${r.machine}`);
-    if (skipped.length) parts.push(`⏭️ ${skipped.length} offline`);
+    if (skipped.length) parts.push(`⏭️ ${skipped.length} sin app`);
 
-    resultEl.innerHTML = `<strong>${okList.length} aprobados</strong> — ${parts.join(" | ")}`;
-    resultEl.classList.add(okList.length > 0 ? "tw-approve-success" : "tw-approve-error");
+    if (okList.length === 0 && failList.length === 0) {
+      resultEl.innerHTML = `Sin equipos con ${target === "claude" ? "Claude" : "Codex"} pendiente`;
+      resultEl.classList.add("tw-approve-error");
+    } else {
+      resultEl.innerHTML = `<strong>${okList.length} aprobados</strong> — ${parts.join(" | ")}`;
+      resultEl.classList.add(okList.length > 0 ? "tw-approve-success" : "tw-approve-error");
+    }
 
-    // Refresh snapshots after 4s to show updated screens (save result first)
     const savedResult = resultEl.innerHTML;
     const savedClass = resultEl.className;
     setTimeout(() => {
       loadSnapshots();
-      // Restore result after snapshot refresh
       setTimeout(() => {
         resultEl.innerHTML = savedResult;
         resultEl.className = savedClass;
@@ -587,7 +589,7 @@ async function approveAll(target, btn, resultEl) {
   }
 
   btn.disabled = false;
-  btn.textContent = target === "claude" ? "Aprobar Claude" : "Aprobar Codex";
+  btn.textContent = target === "claude" ? "Claude" : "Codex";
 }
 
 quickInput.addEventListener("keydown", (e) => {

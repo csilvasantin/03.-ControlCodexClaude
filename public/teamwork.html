@@ -31,18 +31,18 @@
 
       .tw-command-bar {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) auto auto auto auto;
-        gap: 10px;
+        grid-template-columns: minmax(0, 1fr) auto auto auto auto auto auto;
+        gap: 6px;
         align-items: center;
       }
 
       .tw-quick {
         width: 100%;
-        padding: 16px 18px;
-        border-radius: 16px;
+        padding: 12px 14px;
+        border-radius: 12px;
         border: 2px solid var(--line);
         font: inherit;
-        font-size: 17px;
+        font-size: 14px;
         transition: border-color 0.2s;
       }
       .tw-quick:focus { outline: none; border-color: var(--accent); }
@@ -50,7 +50,8 @@
 
       .tw-action-btn {
         height: 100%;
-        min-width: 148px;
+        min-width: 0;
+        padding: 10px 14px;
       }
 
       .tw-send-onboarding {
@@ -114,12 +115,13 @@
       .tw-textarea { resize: vertical; min-height: 44px; }
 
       .tw-send {
-        padding: 12px 28px;
-        border-radius: 14px;
+        padding: 8px 14px;
+        border-radius: 10px;
         border: none;
         background: linear-gradient(135deg, #0984e3, #2471a3);
         color: white;
         font: inherit;
+        font-size: 13px;
         font-weight: 600;
         cursor: pointer;
         white-space: nowrap;
@@ -828,10 +830,10 @@
               <option value="codex">Solo Codex</option>
               <option value="terminal">Solo Terminal</option>
             </select>
-            <button class="tw-send tw-action-btn" id="sendAllBtn">Enviar a todos</button>
-            <button class="tw-send tw-action-btn tw-send-codex" id="approveCodexBtn">Aprobar Codex</button>
-            <button class="tw-send tw-action-btn tw-send-claude" id="approveClaudeBtn">Aprobar Claude</button>
-            <button class="tw-send tw-action-btn tw-send-onboarding" id="onboardingAllBtn">Onboarding all</button>
+            <button class="tw-send tw-action-btn" id="sendAllBtn">Enviar</button>
+            <button class="tw-send tw-action-btn tw-send-codex" id="approveCodexBtn" title="Aprobar solo equipos con Codex abierto">Codex</button>
+            <button class="tw-send tw-action-btn tw-send-claude" id="approveClaudeBtn" title="Aprobar solo equipos con Claude abierto">Claude</button>
+            <button class="tw-send tw-action-btn tw-send-onboarding" id="onboardingAllBtn">Onboarding</button>
             <div class="tw-watchdog-inline">
               <label class="tw-toggle">
                 <input type="checkbox" id="watchdogToggle">
