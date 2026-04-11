@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { extname, resolve } from "node:path";
 
 import { createMachineEntry, readMachines, updateMachineStatus, updateMachineSync } from "./store.js";
-import { sendPromptToMachine, resolveMachineName, getCapture, getImageBuffer, approveAll, approveMachine, getAllSnapshots, getReachableMachines, getWatchdogState, setWatchdogEnabled, setMachineWatchdog, sendOnboardingToAll, startWatchdog, healthCheckAll, getTailscaleStatus, sleepMachine, wakeMachine, setTelegramEnabled, getTelegramEnabled, copyImageToMachine } from "./ssh-exec.js";
+import { sendPromptToMachine, resolveMachineName, getCapture, getImageBuffer, setImageBuffer, setMachineSnapshot, approveAll, approveMachine, getAllSnapshots, getReachableMachines, getWatchdogState, setWatchdogEnabled, setMachineWatchdog, sendOnboardingToAll, startWatchdog, healthCheckAll, getTailscaleStatus, sleepMachine, wakeMachine, setTelegramEnabled, getTelegramEnabled, copyImageToMachine } from "./ssh-exec.js";
 import { addEntry, getHistory } from "./teamwork-store.js";
 
 const PORT = 3030;
@@ -385,6 +385,28 @@ const server = createServer(async (request, response) => {
     } else {
       sendJson(response, 202, { ok: false, pending: true });
     }
+    return;
+  }
+
+  // Upload screenshot from remote machine agent
+  if (request.method === "POST" && url.pathname.startsWith("/api/screenshots/")) {
+    const machineId = url.pathname.split("/").pop();
+    const chunks = [];
+    request.on("data", (c) => chunks.push(c));
+    request.on("end", () => {
+      const buf = Buffer.concat(chunks);
+      if (buf.length > 1000 && buf[0] === 0xff && buf[1] === 0xd8) {
+        setImageBuffer(machineId, buf);
+        setMachineSnapshot(machineId, {
+          type: "image",
+          image: `/api/screenshots/${machineId}`,
+          updatedAt: new Date().toISOString()
+        });
+        sendJson(response, 200, { ok: true, size: buf.length, id: machineId });
+      } else {
+        sendJson(response, 400, { error: "invalid jpeg", size: buf.length });
+      }
+    });
     return;
   }
 

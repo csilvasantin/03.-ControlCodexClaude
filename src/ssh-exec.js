@@ -21,6 +21,14 @@ export function getImageBuffer(id) {
   return imageBuffers.get(id) || null;
 }
 
+export function setImageBuffer(id, buf) {
+  imageBuffers.set(id, buf);
+}
+
+export function setMachineSnapshot(machineId, snapshot) {
+  machineSnapshots.set(machineId, snapshot);
+}
+
 function isLocalMachine(machine) {
   const host = (machine.ssh?.host || "").split(".")[0].toLowerCase();
   return host === LOCAL_HOSTNAME;
