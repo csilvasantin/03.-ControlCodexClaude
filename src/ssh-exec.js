@@ -916,10 +916,16 @@ async function captureOneSnapshot(machine) {
     return text ? { type: "text", text } : null;
   }
 
-  // Remote: single display
-  const buf = await captureDesktopScreenshot(machine);
-  if (buf) {
-    imageBuffers.set(machine.id, buf);
+  // Remote: single display — skip if screen-agent uploaded valid JPEG
+  const existingBuf = imageBuffers.get(machine.id);
+  const hasAgentUpload = existingBuf && existingBuf[0] === 0xff && existingBuf[1] === 0xd8;
+  if (!hasAgentUpload) {
+    const buf = await captureDesktopScreenshot(machine);
+    if (buf) {
+      imageBuffers.set(machine.id, buf);
+      return { type: "image", image: `/api/screenshots/${machine.id}` };
+    }
+  } else {
     return { type: "image", image: `/api/screenshots/${machine.id}` };
   }
   const text = await captureTextFallback(machine);
@@ -958,9 +964,15 @@ export async function refreshAllSnapshots() {
 
       const apps = parseAppsState(appsRaw);
       const existing = machineSnapshots.get(machine.id) || {};
+      // If imageBuffer is valid JPEG (uploaded by screen-agent), don't overwrite with SSH capture
+      const existingBuf = imageBuffers.get(machine.id);
+      const hasValidUpload = existingBuf && existingBuf[0] === 0xff && existingBuf[1] === 0xd8;
+      const snapshotData = hasValidUpload
+        ? { type: "image", image: `/api/screenshots/${machine.id}` } // keep agent upload
+        : (snap || {});
       machineSnapshots.set(machine.id, {
         ...existing,
-        ...(snap || {}),
+        ...snapshotData,
         claudeState: apps.claude,
         codexState: apps.codex,
         updatedAt: new Date().toISOString()
