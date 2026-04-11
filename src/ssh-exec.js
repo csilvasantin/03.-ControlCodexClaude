@@ -1194,9 +1194,29 @@ async function ocrDetectApproval(machine) {
 
       const isClaude = text.includes("claude") || text.includes("anthropic");
       const isCodex = text.includes("codex") || text.includes("openai");
+
+      // Detect questions — Claude/Codex waiting for user input
+      const questionPatterns = [
+        "which", "should i", "do you want", "would you like", "please choose",
+        "select", "pick", "prefer", "qué prefieres", "cuál", "quieres que",
+        "te gustaría", "necesito que", "confirma", "elige", "opciones",
+        "option 1", "option 2", "opción 1", "opción 2"
+      ];
+      // Only count as question if there's a "?" AND a question pattern
+      const hasQuestion = text.includes("?") && questionPatterns.some((q) => text.includes(q));
+      // Extract the question line (line containing "?")
+      let questionText = "";
+      if (hasQuestion) {
+        const lines = stdout.split("\n");
+        const qLines = lines.filter((l) => l.includes("?") && l.trim().length > 10);
+        questionText = qLines.slice(0, 3).join(" ").trim().substring(0, 300);
+      }
+
       resolve({
         claudePending: hasApproval && (isClaude || !isCodex),
-        codexPending: hasApproval && isCodex
+        codexPending: hasApproval && isCodex,
+        question: hasQuestion ? questionText : null,
+        questionSource: hasQuestion ? (isClaude ? "claude" : isCodex ? "codex" : "unknown") : null
       });
     });
   });
@@ -1214,6 +1234,31 @@ export function copyImageToMachine(machine, localPath) {
       if (err) reject(err); else resolve(remotePath);
     });
   });
+}
+
+const telegramQuestionCooldown = new Map(); // machineId → timestamp
+
+async function sendTelegramQuestion(machineName, machineId, question, source) {
+  if (!telegramAlertsEnabled) return;
+  const lastSent = telegramQuestionCooldown.get(machineId) || 0;
+  if (Date.now() - lastSent < 120000) return; // max 1 question per machine per 2min
+  telegramQuestionCooldown.set(machineId, Date.now());
+
+  const emoji = source === "claude" ? "🔴" : source === "codex" ? "🔵" : "❓";
+  const app = source === "claude" ? "Claude" : source === "codex" ? "Codex" : "IA";
+  const text = `${emoji} *${app} pregunta en ${machineName}*\n\n_${question}_\n\n💬 Responde en el grupo para enviar la respuesta\n🎛️ [Abrir Control](https://macmini.tail48b61c.ts.net/teamwork.html)\n\n_Admirito powered by AdmiraNext_ 🤖`;
+
+  try {
+    const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+    await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text, parse_mode: "Markdown" })
+    });
+    console.log(`Telegram question sent: ${machineName} → ${question.substring(0, 50)}`);
+  } catch (e) {
+    console.error("Telegram question failed:", e.message);
+  }
 }
 
 async function sendTelegramAlert(machineName, target) {
@@ -1650,6 +1695,11 @@ async function watchdogCheck() {
             codexApproved = true;
             addApprovalHistoryEntry(machine, "codex", "auto-approved");
           }
+        }
+        // Detect questions waiting for user input
+        if (ocrResult.question) {
+          sendTelegramQuestion(machine.name, machine.id, ocrResult.question, ocrResult.questionSource);
+          addEntry(machine.id, machine.name, `❓ Pregunta: ${ocrResult.question.substring(0, 100)}`, true, null, null, ocrResult.questionSource || "claude");
         }
       } catch { /* OCR failed, continue with other detection */ }
 
