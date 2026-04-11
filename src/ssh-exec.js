@@ -314,9 +314,19 @@ SWIFTEOF
 swift /tmp/tw_capture.swift && rm -f /tmp/tw_capture.swift`);
 
     execFile("ssh", sshArgs, { timeout: 30_000 }, (err, stdout) => {
-      const b64 = stdout?.trim();
-      if (err || !b64 || b64 === "FAIL") return reject(err || new Error("capture failed"));
-      try { resolve(Buffer.from(b64, "base64")); } catch (e) { reject(e); }
+      if (err || !stdout) return reject(err || new Error("capture failed"));
+      // Clean: keep only base64 chars (strip SSH warnings, newlines, etc)
+      const b64 = stdout.replace(/[^A-Za-z0-9+/=]/g, "");
+      if (!b64 || b64 === "FAIL" || b64.length < 100) return reject(new Error("capture empty"));
+      try {
+        const buf = Buffer.from(b64, "base64");
+        // Validate JPEG header
+        if (buf[0] === 0xff && buf[1] === 0xd8) {
+          resolve(buf);
+        } else {
+          reject(new Error("not jpeg: " + buf.slice(0, 4).toString("hex")));
+        }
+      } catch (e) { reject(e); }
     });
   });
 }
@@ -916,18 +926,22 @@ async function captureOneSnapshot(machine) {
     return text ? { type: "text", text } : null;
   }
 
-  // Remote: single display — skip if screen-agent uploaded valid JPEG
+  // Remote: single display
+  // If screen-agent uploaded a recent JPEG (<60s), skip SSH capture
   const existingBuf = imageBuffers.get(machine.id);
-  const hasAgentUpload = existingBuf && existingBuf[0] === 0xff && existingBuf[1] === 0xd8;
-  if (!hasAgentUpload) {
-    const buf = await captureDesktopScreenshot(machine);
+  const existingSnap = machineSnapshots.get(machine.id);
+  const hasRecentUpload = existingBuf && existingBuf[0] === 0xff && existingBuf[1] === 0xd8
+    && existingSnap?.updatedAt && (Date.now() - new Date(existingSnap.updatedAt).getTime() < 60000);
+  if (hasRecentUpload) {
+    return { type: "image", image: `/api/screenshots/${machine.id}` };
+  }
+  try {
+    const buf = await captureScreenshot(machine, false);
     if (buf) {
       imageBuffers.set(machine.id, buf);
       return { type: "image", image: `/api/screenshots/${machine.id}` };
     }
-  } else {
-    return { type: "image", image: `/api/screenshots/${machine.id}` };
-  }
+  } catch { /* SSH capture failed, try text fallback */ }
   const text = await captureTextFallback(machine);
   return text ? { type: "text", text } : null;
 }
