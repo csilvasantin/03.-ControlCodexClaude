@@ -485,10 +485,18 @@ function isReachable(machine) {
 // Build the osascript command for approval based on target app
 function buildApproveScript(appName) {
   if (appName === "Claude") {
-    // Claude: activa la app y envía Ctrl+Enter — macOS da foco al diálogo modal automáticamente
+    // Claude Desktop: click "Permitir una vez" button by coordinates
+    // The button is at bottom-right of the Claude window
     return `tell application "Claude" to activate
-delay 0.4
-tell application "System Events" to key code 36 using control down`;
+delay 0.3
+tell application "System Events" to tell process "Claude"
+  set {x, y} to position of front window
+  set {w, h} to size of front window
+  -- "Permitir una vez" is at approx 90% right, 98% bottom of the window
+  set btnX to x + (w * 0.9)
+  set btnY to y + (h * 0.98)
+  click at {btnX, btnY}
+end tell`;
   }
   if (appName === "Codex") {
     // Codex: send "2" + Enter to approve
