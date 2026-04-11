@@ -1066,7 +1066,9 @@ const WATCHDOG_INTERVAL_MS = 15_000;
 // Exact button names that mean "approve this tool use" in Claude Desktop
 const CLAUDE_APPROVAL_EXACT = [
   "Allow", "Yes", "OK", "Run", "Execute", "Confirm", "Accept",
-  "Permitir", "Aceptar", "Sí", "Continue", "Proceed"
+  "Permitir", "Aceptar", "Sí", "Continue", "Proceed",
+  "Permitir una vez", "Allow once", "Always allow", "Always allow for project",
+  "Always allow for project (local)"
 ];
 // Claude Desktop tool-use buttons that start with action verbs
 const CLAUDE_TOOL_BUTTON_VERBS = [
@@ -1308,7 +1310,7 @@ async function detectClaudeApprovalButtons(machine) {
               set n to name of b
               if n is not missing value and n is not "" then
                 set r to r & n & "|"
-                if n is in {"Allow", "Yes", "OK", "Run", "Confirm", "Permitir", "Aceptar"} then set foundApproval to true
+                if n is in {"Allow", "Yes", "OK", "Run", "Confirm", "Permitir", "Aceptar", "Permitir una vez", "Allow once", "Always allow", "Always allow for project"} then set foundApproval to true
               end if
             end try
           end repeat
@@ -1318,7 +1320,7 @@ async function detectClaudeApprovalButtons(machine) {
                 set n to name of b
                 if n is not missing value and n is not "" then
                   set r to r & n & "|"
-                  if n is in {"Allow", "Yes", "OK", "Run", "Confirm", "Permitir", "Aceptar"} then set foundApproval to true
+                  if n is in {"Allow", "Yes", "OK", "Run", "Confirm", "Permitir", "Aceptar", "Permitir una vez", "Allow once", "Always allow", "Always allow for project"} then set foundApproval to true
                 end if
               end try
             end repeat
@@ -1329,7 +1331,7 @@ async function detectClaudeApprovalButtons(machine) {
                 set n to name of b
                 if n is not missing value and n is not "" then
                   set r to r & n & "|"
-                  if n is in {"Allow", "Yes", "OK", "Run", "Confirm", "Permitir", "Aceptar"} then set foundApproval to true
+                  if n is in {"Allow", "Yes", "OK", "Run", "Confirm", "Permitir", "Aceptar", "Permitir una vez", "Allow once", "Always allow", "Always allow for project"} then set foundApproval to true
                 end if
               end try
             end repeat
