@@ -1095,44 +1095,31 @@ const telegramAlertCooldown = new Map(); // machineId:target → timestamp
 export function setTelegramEnabled(enabled) { telegramAlertsEnabled = enabled; }
 export function getTelegramEnabled() { return telegramAlertsEnabled; }
 
-// OCR-based approval detection — runs screencapture + tesseract on remote machine via SSH
+// Fast approval detection — scans only button names in Claude/Codex windows
 async function ocrDetectApproval(machine) {
-  const script = `screencapture -x -t png /tmp/tw_ocr.png 2>/dev/null && /opt/homebrew/bin/tesseract /tmp/tw_ocr.png stdout --psm 3 -l eng 2>/dev/null && rm -f /tmp/tw_ocr.png`;
+  // This reuses the existing detectClaudeApprovalButtons + detectCodexApproval
+  // but combines results into a simple pending/not-pending answer
+  let claudePending = false;
+  let codexPending = false;
 
-  function attempt(useLocal) {
-    return new Promise((resolve) => {
-      if (isLocalMachine(machine)) {
-        execFile("bash", ["-c", script], { timeout: 15000 }, (err, stdout) => {
-          resolve(err ? "" : stdout || "");
-        });
-        return;
-      }
-      const sshArgs = buildSshArgs(machine, useLocal);
-      sshArgs.push(script);
-      execFile("ssh", sshArgs, { timeout: 15000 }, (err, stdout) => {
-        resolve(err ? "" : stdout || "");
-      });
-    });
+  const apps = parseAppsState(await captureAllAppsState(machine));
+
+  if (isActiveDesktopApp(apps.claude)) {
+    const buttons = await detectClaudeApprovalButtons(machine);
+    if (hasClaudeToolApproval(buttons)) claudePending = true;
   }
 
-  let text = "";
-  if (deriveLocalHostname(machine) && !isLocalMachine(machine)) {
-    text = await attempt(true);
-    if (!text) text = await attempt(false);
-  } else {
-    text = await attempt(false);
+  if (isActiveDesktopApp(apps.codex)) {
+    const codexText = await detectCodexApproval(machine);
+    if (hasCodexApproval(codexText)) codexPending = true;
   }
 
-  text = text.toLowerCase();
-  const approvalKeywords = ["allow", "approve", "accept", "confirm", "run tool", "tool use", "y/n", "permitir", "aceptar"];
-  const hasApproval = approvalKeywords.some((kw) => text.includes(kw));
-  const isClaude = text.includes("claude") || text.includes("anthropic");
-  const isCodex = text.includes("codex") || text.includes("openai");
-  return {
-    claudePending: hasApproval && (isClaude || !isCodex),
-    codexPending: hasApproval && isCodex,
-    text: text.substring(0, 200) // debug
-  };
+  // Also check terminal for Claude Code / Codex CLI approvals
+  const termResult = await detectTerminalApproval(machine);
+  if (termResult.includes("CLAUDE_TERM:PENDING")) claudePending = true;
+  if (termResult.includes("CODEX_TERM:PENDING")) codexPending = true;
+
+  return { claudePending, codexPending };
 }
 
 // Copy an image file to a remote machine via SCP
