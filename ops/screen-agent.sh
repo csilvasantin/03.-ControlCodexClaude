@@ -2,24 +2,44 @@
 # screen-agent.sh — captures screen locally and sends to AdmiraNext Control server
 # Usage: screen-agent.sh <machine-id> [interval-seconds] [server-url]
 #
-# Runs as a loop, capturing screen every N seconds and POSTing to the server.
-# Install: copy to each machine and run via launchd or nohup.
+# Before each capture, ensures Claude/Codex/Telegram is in focus.
+# If another app is frontmost, switches to Claude > Codex > Telegram.
 
 MACHINE_ID="${1:?Usage: screen-agent.sh <machine-id> [interval] [server-url]}"
 INTERVAL="${2:-30}"
 SERVER="${3:-https://macmini.tail48b61c.ts.net}"
 
 TMP_FILE="/tmp/tw_screen_agent.jpg"
+ALLOWED_APPS="Claude|Codex|Telegram"
 
 echo "Screen agent started: machine=$MACHINE_ID interval=${INTERVAL}s server=$SERVER"
 
+ensure_focus() {
+  FRONT=$(osascript -e 'tell application "System Events" to get name of first process whose frontmost is true' 2>/dev/null)
+  if echo "$FRONT" | grep -qE "$ALLOWED_APPS"; then
+    return 0
+  fi
+  # Switch focus: try Claude first, then Codex, then Telegram
+  for app in Claude Codex Telegram; do
+    if osascript -e "tell application \"System Events\" to exists process \"$app\"" 2>/dev/null | grep -q true; then
+      osascript -e "tell application \"$app\" to activate" 2>/dev/null
+      sleep 0.5
+      echo "$(date +%H:%M:%S) Focus: $FRONT → $app"
+      return 0
+    fi
+  done
+  echo "$(date +%H:%M:%S) No Claude/Codex/Telegram running"
+  return 1
+}
+
 while true; do
-  # Capture screen as JPEG (low quality for speed)
+  # Ensure correct app is in focus
+  ensure_focus
+
+  # Capture screen as JPEG (full resolution for OCR)
   screencapture -x -t jpg "$TMP_FILE" 2>/dev/null
 
   if [ -f "$TMP_FILE" ] && [ -s "$TMP_FILE" ]; then
-    # Upload full resolution (needed for OCR detection)
-    # No resize — OCR needs high-res to read text
     HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
       --max-time 10 \
       -X POST \
