@@ -635,7 +635,11 @@ export function getAllSnapshots() {
 }
 
 function isActiveDesktopApp(state) {
-  return Boolean(state && state !== "no-window" && state !== "OFF");
+  // null/undefined = not checked, "no-window"/"OFF" = not running
+  // "" (empty string) = running but window has no title (still active)
+  if (state === null || state === undefined) return false;
+  if (state === "no-window" || state === "OFF") return false;
+  return true;
 }
 
 function pickOnboardingTarget(machine) {
