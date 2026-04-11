@@ -18,10 +18,8 @@ while true; do
   screencapture -x -t jpg "$TMP_FILE" 2>/dev/null
 
   if [ -f "$TMP_FILE" ] && [ -s "$TMP_FILE" ]; then
-    # Resize to max 960px wide for bandwidth
-    sips -Z 960 "$TMP_FILE" --setProperty formatOptions 60 >/dev/null 2>&1
-
-    # Upload to server
+    # Upload full resolution (needed for OCR detection)
+    # No resize — OCR needs high-res to read text
     HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
       --max-time 10 \
       -X POST \
