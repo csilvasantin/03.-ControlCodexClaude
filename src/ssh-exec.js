@@ -1195,28 +1195,19 @@ async function ocrDetectApproval(machine) {
       const isClaude = text.includes("claude") || text.includes("anthropic");
       const isCodex = text.includes("codex") || text.includes("openai");
 
-      // Detect questions — Claude/Codex waiting for user input
-      const questionPatterns = [
-        "which", "should i", "do you want", "would you like", "please choose",
-        "select", "pick", "prefer", "qué prefieres", "cuál", "quieres que",
-        "te gustaría", "necesito que", "confirma", "elige", "opciones",
-        "option 1", "option 2", "opción 1", "opción 2",
-        "corrijo", "debería", "deberia", "subir", "bajar",
-        "how", "what", "where", "cómo", "como", "dónde", "donde"
-      ];
-      // OCR often mangles "¿" to "é" — check for "?" or lines ending with "?"
-      const hasQuestionMark = text.includes("?") || /\?\s*$/m.test(stdout);
-      const hasPattern = questionPatterns.some((q) => text.includes(q));
-      // Don't count as question if it's just the "Responder..." placeholder
-      const isJustPlaceholder = text.includes("responder") && !hasPattern;
-      const hasQuestion = hasQuestionMark && hasPattern && !isJustPlaceholder;
-      // Extract the question line
-      let questionText = "";
-      if (hasQuestion) {
-        const lines = stdout.split("\n");
-        const qLines = lines.filter((l) => (l.includes("?") || /subir|bajar|corrij|deberi|which|should|prefer|elige|quieres/i.test(l)) && l.trim().length > 10);
-        questionText = qLines.slice(0, 3).join(" ").trim().substring(0, 300);
-      }
+      // Detect questions — any line ending with "?" that's not UI noise
+      const lines = stdout.split("\n");
+      const uiNoise = ["responder", "vista previa", "aceptar ediciones", "sonnet", "opus", "haiku", "nueva sesi"];
+      const questionLines = lines.filter((l) => {
+        const trimmed = l.trim();
+        if (trimmed.length < 8 || trimmed.length > 200) return false;
+        if (!trimmed.includes("?")) return false;
+        const lower = trimmed.toLowerCase();
+        if (uiNoise.some((n) => lower.includes(n))) return false;
+        return true;
+      });
+      const hasQuestion = questionLines.length > 0;
+      const questionText = hasQuestion ? questionLines.map((l) => l.trim()).join(" ").substring(0, 300) : "";
 
       resolve({
         claudePending: hasApproval && (isClaude || !isCodex),
