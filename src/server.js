@@ -486,10 +486,17 @@ async function pollTelegramInbox() {
       if (!msg || msg.chat?.id !== TG_CHAT_ID) continue;
       if (msg.from?.is_bot) continue; // ignore own bot messages
 
+      let rawText = msg.text || msg.caption || "";
+      // /admirito prefix → target Claude Code, otherwise Codex
+      const isAdmirito = rawText.toLowerCase().startsWith("/admirito");
+      const cleanText = isAdmirito ? rawText.replace(/^\/admirito\s*/i, "").trim() : rawText;
+
       const entry = {
         id: msg.message_id,
         from: msg.from?.first_name || "Desconocido",
-        text: msg.text || msg.caption || "",
+        text: cleanText,
+        rawText: rawText,
+        target: isAdmirito ? "claude" : "codex",
         date: new Date(msg.date * 1000).toISOString(),
         image: null
       };

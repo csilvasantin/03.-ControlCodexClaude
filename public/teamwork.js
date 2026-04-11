@@ -886,31 +886,36 @@ async function loadTelegramInbox() {
       <div class="tw-tg-msg" title="Clic en Usar para cargar como prompt">
         <span class="tw-tg-icon">📱</span>
         <div class="tw-tg-body">
-          <div class="tw-tg-from">${msg.from} via Telegram</div>
+          <div class="tw-tg-from">${msg.from} via Telegram <span style="font-size:10px;padding:1px 5px;border-radius:4px;color:white;background:${msg.target === "claude" ? "#d63031" : "#0984e3"}">${msg.target === "claude" ? "Claude" : "Codex"}</span></div>
           <div class="tw-tg-text">${msg.text || "(imagen)"}</div>
           <div class="tw-tg-time">${timeAgo(msg.date)}</div>
         </div>
         ${msg.image ? `<img class="tw-tg-thumb" src="${msg.image}" alt="Imagen">` : ""}
         <div class="tw-tg-actions">
-          <button class="tw-tg-use" onclick="event.stopPropagation(); useTgMessage(${i}, ${JSON.stringify(msg.text || "").replace(/"/g, '&quot;')})">Usar</button>
+          <button class="tw-tg-use" onclick="event.stopPropagation(); useTgMessage(${i}, ${JSON.stringify(msg.text || "").replace(/"/g, '&quot;')}, '${msg.target || "codex"}')">${msg.target === "claude" ? "→ Claude" : "→ Codex"}</button>
           <button class="tw-tg-dismiss" onclick="event.stopPropagation(); dismissTgMessage(${i})">✕</button>
         </div>
       </div>
     `).join("");
-    // Auto-load last message into prompt field
+    // Auto-load last message into prompt field + pre-select target
     const last = data.messages[data.messages.length - 1];
     const input = document.querySelector("#quickInput");
+    const targetSelect = document.querySelector("#sendAllTarget");
     if (last?.text && input && !input.value) {
       input.value = last.text;
-      input.placeholder = `📱 ${last.from}: listo para enviar`;
+      const targetLabel = last.target === "claude" ? "Claude" : "Codex";
+      input.placeholder = `📱 ${last.from} → ${targetLabel}: listo para enviar`;
+      if (targetSelect) targetSelect.value = last.target || "codex";
     }
   } catch { /* ignore */ }
 }
 
-window.useTgMessage = function(index, text) {
+window.useTgMessage = function(index, text, target) {
   const input = document.querySelector("#quickInput");
+  const targetSelect = document.querySelector("#sendAllTarget");
   if (input && text) {
     input.value = text;
+    if (targetSelect && target) targetSelect.value = target;
     input.focus();
   }
 };
