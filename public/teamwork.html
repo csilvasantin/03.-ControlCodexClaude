@@ -449,6 +449,12 @@
       .tw-pillar-act-ok { background: rgba(0,184,148,0.4) !important; color: #00b894 !important; }
       .tw-pillar-act-fail { background: rgba(214,48,49,0.4) !important; color: #d63031 !important; }
 
+      .tw-pillar-icon.tw-pillar-active {
+        filter: drop-shadow(0 0 4px currentColor) drop-shadow(0 0 8px currentColor);
+        opacity: 1;
+      }
+      .tw-pillar-icon:not(.tw-pillar-active) { opacity: 0.35; }
+
       /* Machine info dropdown */
       .tw-info-wrapper { position: relative; display: inline-block; vertical-align: middle; }
       .tw-info-btn {
@@ -1028,7 +1034,7 @@
       <header class="hero">
         <div class="hero-inner">
           <div class="hero-text">
-            <p class="eyebrow">Control de equipo — v26.12.04.54</p>
+            <p class="eyebrow">Control de equipo — v26.12.04.55</p>
             <h1>AdmiraNext Control</h1>
             <p class="subtitle">Opera por separado el Consejo de Administracion en Mac y el Equipo en PC desde un mismo panel.</p>
           </div>
@@ -1125,10 +1131,10 @@
       </div>
 
       <footer style="text-align:center;padding:24px 0 8px;color:var(--muted);font-size:12px;">
-          AdmiraNext Control v26.12.04.54 — 11/4/2026
+          AdmiraNext Control v26.12.04.55 — 11/4/2026
       </footer>
 
-      <script src="./teamwork.js?v=20260412-53" type="module"></script>
+      <script src="./teamwork.js?v=20260412-55" type="module"></script>
     <script>
       (function() {
         const c = document.getElementById("matrixCanvas");

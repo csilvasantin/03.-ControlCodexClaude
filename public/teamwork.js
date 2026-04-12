@@ -895,8 +895,27 @@ function updateWatchdogBadges() {
       }
     }
   });
+  updatePillarIcons();
   updateApproveButtonCounters();
   checkPendingApprovals();
+}
+
+function updatePillarIcons() {
+  document.querySelectorAll(".tw-pillar-machine").forEach((container) => {
+    const machineId = container.dataset.pillarMachine;
+    const stats = watchdogStats[machineId];
+    if (!stats) return;
+
+    const isActive = (state) => state && state !== "OFF" && state !== "no-window";
+
+    const tIcon = container.querySelector(".tw-pillar-icon.tw-pillar-t");
+    const xIcon = container.querySelector(".tw-pillar-icon.tw-pillar-x");
+    const cIcon = container.querySelector(".tw-pillar-icon.tw-pillar-c");
+
+    if (tIcon) tIcon.classList.toggle("tw-pillar-active", isActive(stats.telegramState));
+    if (xIcon) xIcon.classList.toggle("tw-pillar-active", isActive(stats.codexState));
+    if (cIcon) cIcon.classList.toggle("tw-pillar-active", isActive(stats.claudeState));
+  });
 }
 
 function updateApproveButtonCounters() {

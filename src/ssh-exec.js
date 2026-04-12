@@ -727,14 +727,29 @@ function triggerPillarSnapshotBurst(machine, app, action) {
   const tick = async () => {
     count++;
     try {
-      const snap = await captureOneSnapshot(machine);
+      // Capture screenshot + app state in parallel
+      const [snap, rawApps] = await Promise.all([
+        captureOneSnapshot(machine),
+        captureAllAppsState(machine)
+      ]);
       if (snap) {
         machineSnapshots.set(machine.id, { ...snap, updatedAt: new Date().toISOString() });
-        // If opening, check if app appeared in snapshot; if closing, check it disappeared
-        const appVisible = snap.claudeState || snap.codexState;
-        if (action === "open" && appVisible) {
+      }
+      // Update watchdog app states so frontend icons update immediately
+      if (rawApps) {
+        const apps = parseAppsState(rawApps);
+        initMachineWatchdog(machine.id);
+        const mState = watchdogState.perMachine[machine.id];
+        mState.claudeState = apps.claude;
+        mState.codexState = apps.codex;
+        mState.telegramState = apps.telegram;
+
+        // Stop early if the target app reached desired state
+        const appState = app === "telegram" ? apps.telegram : app === "codex" ? apps.codex : apps.claude;
+        const isOpen = appState && appState !== "no-window";
+        if ((action === "open" && isOpen) || (action === "close" && !isOpen)) {
           activeBursts.delete(machine.id);
-          return; // app visible, stop bursting
+          return;
         }
       }
     } catch { /* ignore capture errors during burst */ }
@@ -1463,6 +1478,16 @@ tell application "System Events"
   else
     set r to r & "CODEX:OFF"
   end if
+  set r to r & "|||"
+  if exists process "Telegram" then
+    try
+      set r to r & "TELEGRAM:" & (name of front window of process "Telegram")
+    on error
+      set r to r & "TELEGRAM:no-window"
+    end try
+  else
+    set r to r & "TELEGRAM:OFF"
+  end if
 end tell
 return r`;
 
@@ -1470,9 +1495,11 @@ return r`;
     const script = `
 $claude = Get-Process -Name "Claude" -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 -or $_.MainWindowTitle } | Select-Object -First 1
 $codex = Get-Process -Name "Codex" -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 -or $_.MainWindowTitle } | Select-Object -First 1
+$telegram = Get-Process -Name "Telegram" -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 -or $_.MainWindowTitle } | Select-Object -First 1
 $claudeTitle = if ($claude) { if ($claude.MainWindowTitle) { $claude.MainWindowTitle } else { "Claude" } } else { "OFF" }
 $codexTitle = if ($codex) { if ($codex.MainWindowTitle) { $codex.MainWindowTitle } else { "Codex" } } else { "OFF" }
-Write-Output ("CLAUDE:{0}|||CODEX:{1}" -f $claudeTitle, $codexTitle)
+$telegramTitle = if ($telegram) { if ($telegram.MainWindowTitle) { $telegram.MainWindowTitle } else { "Telegram" } } else { "OFF" }
+Write-Output ("CLAUDE:{0}|||CODEX:{1}|||TELEGRAM:{2}" -f $claudeTitle, $codexTitle, $telegramTitle)
 `.trim();
     const { error, stdout } = await execWindows(script, 8_000);
     return error ? null : stdout?.trim() || null;
@@ -1504,9 +1531,9 @@ Write-Output ("CLAUDE:{0}|||CODEX:{1}" -f $claudeTitle, $codexTitle)
 
 // Parse "CLAUDE:windowTitle|||CODEX:windowTitle" into { claude, codex } states
 function parseAppsState(raw) {
-  if (!raw) return { claude: null, codex: null };
+  if (!raw) return { claude: null, codex: null, telegram: null };
   const parts = raw.split("|||");
-  const result = { claude: null, codex: null };
+  const result = { claude: null, codex: null, telegram: null };
   for (const part of parts) {
     if (part.startsWith("CLAUDE:")) {
       const val = part.slice(7).trim();
@@ -1515,6 +1542,10 @@ function parseAppsState(raw) {
     if (part.startsWith("CODEX:")) {
       const val = part.slice(6).trim();
       result.codex = val === "OFF" ? null : val;
+    }
+    if (part.startsWith("TELEGRAM:")) {
+      const val = part.slice(9).trim();
+      result.telegram = val === "OFF" ? null : val;
     }
   }
   return result;
@@ -1792,6 +1823,7 @@ async function watchdogCheck() {
       const apps = parseAppsState(raw);
       mState.claudeState = apps.claude;
       mState.codexState = apps.codex;
+      mState.telegramState = apps.telegram;
 
       let claudeApproved = false;
       let codexApproved = false;
