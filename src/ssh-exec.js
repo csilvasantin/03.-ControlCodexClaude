@@ -714,6 +714,42 @@ async function executePillarOnMachine(machine, app, action) {
   });
 }
 
+// Burst capture: take snapshots every 5s up to 6 times after a pillar action
+const PILLAR_BURST_INTERVAL_MS = 5_000;
+const PILLAR_BURST_MAX = 6;
+const activeBursts = new Set(); // machineIds with active bursts
+
+function triggerPillarSnapshotBurst(machine, app, action) {
+  if (activeBursts.has(machine.id)) return; // already bursting
+  activeBursts.add(machine.id);
+  let count = 0;
+
+  const tick = async () => {
+    count++;
+    try {
+      const snap = await captureOneSnapshot(machine);
+      if (snap) {
+        machineSnapshots.set(machine.id, { ...snap, updatedAt: new Date().toISOString() });
+        // If opening, check if app appeared in snapshot; if closing, check it disappeared
+        const appVisible = snap.claudeState || snap.codexState;
+        if (action === "open" && appVisible) {
+          activeBursts.delete(machine.id);
+          return; // app visible, stop bursting
+        }
+      }
+    } catch { /* ignore capture errors during burst */ }
+
+    if (count >= PILLAR_BURST_MAX) {
+      activeBursts.delete(machine.id);
+      return;
+    }
+    setTimeout(tick, PILLAR_BURST_INTERVAL_MS);
+  };
+
+  // First capture after 2s (give app time to launch/close)
+  setTimeout(tick, 2000);
+}
+
 export async function managePillarApp(machineId, app, action) {
   const data = await readMachines();
   const machine = data.machines.find((m) => m.id === machineId);
@@ -723,7 +759,11 @@ export async function managePillarApp(machineId, app, action) {
   if (!hasWindowsAutomationChannel(machine) && !isReachable(machine) && !isLocalMachine(machine)) {
     return { machine: machine.name, id: machine.id, ok: false, error: "offline" };
   }
-  return executePillarOnMachine(machine, app, action);
+  const result = await executePillarOnMachine(machine, app, action);
+  if (result.ok) {
+    triggerPillarSnapshotBurst(machine, app, action);
+  }
+  return result;
 }
 
 export async function managePillarAll(action) {
@@ -741,6 +781,15 @@ export async function managePillarAll(action) {
   for (const m of unreachable) {
     output.push({ machine: m.name, id: m.id, ok: false, error: "offline", skipped: true });
   }
+
+  // Trigger burst capture for each machine that had at least one OK result
+  const okMachineIds = new Set(output.filter((r) => r.ok).map((r) => r.id));
+  for (const machine of reachable) {
+    if (okMachineIds.has(machine.id)) {
+      triggerPillarSnapshotBurst(machine, "all", action);
+    }
+  }
+
   return output;
 }
 
