@@ -36,8 +36,21 @@ while true; do
   # Ensure correct app is in focus
   ensure_focus
 
-  # Capture screen as JPEG (full resolution for OCR)
+  # Capture screen as JPEG — try screencapture first, fallback to Python+Quartz
   screencapture -x -t jpg "$TMP_FILE" 2>/dev/null
+  if [ ! -s "$TMP_FILE" ]; then
+    python3 -c "
+import Quartz, LaunchServices
+from Foundation import NSMutableData, NSBitmapImageRep, NSJPEGFileType
+region = Quartz.CGRectInfinite
+image = Quartz.CGWindowListCreateImage(region, Quartz.kCGWindowListOptionOnScreenOnly, Quartz.kCGNullWindowID, Quartz.kCGWindowImageDefault)
+if image:
+    w, h = Quartz.CGImageGetWidth(image), Quartz.CGImageGetHeight(image)
+    rep = NSBitmapImageRep.alloc().initWithCGImage_(image)
+    data = rep.representationUsingType_properties_(NSJPEGFileType, {})
+    data.writeToFile_atomically_('$TMP_FILE', True)
+" 2>/dev/null
+  fi
 
   if [ -f "$TMP_FILE" ] && [ -s "$TMP_FILE" ]; then
     HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
