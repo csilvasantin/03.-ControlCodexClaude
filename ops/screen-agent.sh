@@ -40,14 +40,13 @@ while true; do
   screencapture -x -t jpg "$TMP_FILE" 2>/dev/null
   if [ ! -s "$TMP_FILE" ]; then
     python3 -c "
-import Quartz, LaunchServices
-from Foundation import NSMutableData, NSBitmapImageRep, NSJPEGFileType
+import Quartz
+from AppKit import NSBitmapImageRep
 region = Quartz.CGRectInfinite
 image = Quartz.CGWindowListCreateImage(region, Quartz.kCGWindowListOptionOnScreenOnly, Quartz.kCGNullWindowID, Quartz.kCGWindowImageDefault)
 if image:
-    w, h = Quartz.CGImageGetWidth(image), Quartz.CGImageGetHeight(image)
     rep = NSBitmapImageRep.alloc().initWithCGImage_(image)
-    data = rep.representationUsingType_properties_(NSJPEGFileType, {})
+    data = rep.representationUsingType_properties_(3, {})
     data.writeToFile_atomically_('$TMP_FILE', True)
 " 2>/dev/null
   fi
