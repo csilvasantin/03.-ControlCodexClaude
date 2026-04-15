@@ -203,3 +203,43 @@ pythonw C:\Users\34665\cLAUDE\screenshot-agent.py
 
 - Algunos Macs tienen doble identidad (ej: `macbookairplata` y `macbookairplata-1`). El mapping en `TAILSCALE_TO_ID` del demo server cubre ambos.
 - El hostname real del Mac puede no coincidir con el de Tailscale. Verificar con `tailscale status` desde el Mac Mini.
+## OpenClaw — Conflicto con /teamwork.html
+
+OpenClaw (Claude Code Gateway) ocupa el path `/teamwork.html` en Tailscale Serve,
+impidiendo que el panel AdmiraNext Control sea accesible via Funnel.
+
+### Síntoma
+
+Al acceder a `https://csilvasantin.github.io/03.-ControlCodexClaude/teamwork.html`
+o al pulsar CONTROL en el SCUMM game, se abre OpenClaw en lugar del panel.
+
+URL síntoma: `https://macmini.tail48b61c.ts.net/teamwork.html/chat?session=main`
+
+### Causa
+
+Tailscale Serve tiene configurado un path `/teamwork.html` que apunta al puerto
+de OpenClaw, solapando la ruta por defecto que debería llegar a Node.js (3030).
+
+### Solución (Opción A)
+
+Ejecutar en el Mac Mini:
+```bash
+cd ~/PATH/03.-ControlCodexClaude
+bash ops/macos/reconfigure-tailscale.sh
+# Si se conoce el puerto de OpenClaw (ej: 8080):
+bash ops/macos/reconfigure-tailscale.sh --openclaw-port 8080
+```
+
+El script:
+1. Elimina el path `/teamwork.html` de Tailscale Serve
+2. Restaura `/` → localhost:3030 y `/demo` → localhost:3032
+3. Opcionalmente añade `/claw-gateway` → OpenClaw (si se especifica el puerto)
+
+### Configuración objetivo Tailscale Funnel
+
+```
+https://macmini.tail48b61c.ts.net/             → proxy http://127.0.0.1:3030
+https://macmini.tail48b61c.ts.net/demo         → proxy http://127.0.0.1:3032
+https://macmini.tail48b61c.ts.net/claw-gateway → proxy http://127.0.0.1:OPENCLAW_PORT
+Funnel: ON
+```
