@@ -4,9 +4,11 @@ const onboardingAllBtn = document.querySelector("#onboardingAllBtn");
 const sendAllTarget = document.querySelector("#sendAllTarget");
 const feedback = document.querySelector("#feedback");
 const historyList = document.querySelector("#historyList");
+const watchdogOverview = document.querySelector("#watchdogOverview");
 
 let machines = [];
 let isStaticMode = false;
+let latestSnapshots = {};
 const FUNNEL_URL = "https://macmini.tail48b61c.ts.net";
 const FUNNEL_HOST = "macmini.tail48b61c.ts.net";
 const isLocal = location.hostname === "localhost" || location.hostname === "127.0.0.1" || location.hostname === FUNNEL_HOST;
@@ -19,21 +21,18 @@ const GROUP_LABELS = {
   worker: "Equipo"
 };
 const LIVE_PREVIEW_WINDOW_MS = 10 * 60 * 1000;
-let tailscaleData = {}; // Cache of live Tailscale status per machine ID
-
-function timeAgo(iso) {
-  if (!iso) return "—";
-  const diff = Date.now() - new Date(iso).getTime();
-  if (diff < 60000) return "ahora";
-  if (diff < 3600000) return `hace ${Math.floor(diff / 60000)}m`;
-  if (diff < 86400000) return `hace ${Math.floor(diff / 3600000)}h`;
-  return `hace ${Math.floor(diff / 86400000)}d`;
-}
-
-// Redirect GitHub Pages to Funnel
-if (location.hostname === "csilvasantin.github.io") {
-  location.href = FUNNEL_URL + "/teamwork.html";
-}
+const WATCHDOG_SIGNAL_WINDOW_MS = 2 * 60 * 1000;
+const SNAPSHOT_REFRESH_MS = 15_000;
+const MACHINE_REFRESH_MS = 30_000;
+const WATCHDOG_REFRESH_MS = 15_000;
+const ACTIVE_MACHINE_STATUSES = new Set(["online", "idle", "busy"]);
+const MACHINE_STATUS_META = {
+  online: { label: "en linea", tone: "ok" },
+  idle: { label: "disponible", tone: "idle" },
+  busy: { label: "ocupado", tone: "busy" },
+  offline: { label: "offline", tone: "off" },
+  maintenance: { label: "mantenimiento", tone: "warn" }
+};
 
 function apiUrl(path) {
   return isLocal ? path : `${FUNNEL_URL}${path}`;
@@ -62,6 +61,35 @@ function formatTime(iso) {
   } catch {
     return iso;
   }
+}
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  }[char]));
+}
+
+function formatHistoryTarget(target) {
+  return {
+    claude: "Claude",
+    codex: "Codex",
+    terminal: "Terminal",
+    auto: "Auto"
+  }[target] || target || "Terminal";
+}
+
+function formatHistoryAction(action) {
+  return {
+    send: "directo",
+    "send-all": "global",
+    "onboarding-all": "onboarding",
+    "approve-all": "aprobar todos",
+    "approve-machine": "aprobar"
+  }[action] || "accion";
 }
 
 function resolveName(input) {
@@ -107,31 +135,26 @@ async function sendToAll(prompt) {
     return;
   }
   sendAllBtn.disabled = true;
-  const target = sendAllTarget.value;
   sendAllBtn.textContent = "Enviando...";
+  const target = sendAllTarget.value;
 
   try {
-    const payload = { prompt, target };
-    if (pendingTgImage) payload.image = pendingTgImage;
     const res = await fetch(apiUrl("/api/teamwork/send-all"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({ prompt, target })
     });
-    pendingTgImage = null; // clear after sending
     const data = await res.json();
     const ok = data.results.filter((r) => r.ok).length;
-    const skipped = data.results.filter((r) => r.skipped).length;
     const label = target === "all" ? "Claude + Codex" : target.charAt(0).toUpperCase() + target.slice(1);
-    const extra = skipped ? ` (${skipped} sin app abierta)` : "";
-    showFeedback(`Enviado a ${ok} equipos con ${label}${extra}`, ok > 0);
+    showFeedback(`Enviado a ${ok} destinos (${label} en todos los equipos)`, true);
     quickInput.value = "";
   } catch (err) {
     showFeedback(`Error: ${err.message}`, false);
   }
 
   sendAllBtn.disabled = false;
-  sendAllBtn.textContent = "Enviar";
+  sendAllBtn.textContent = "Enviar a todos";
   loadHistory();
 }
 
@@ -192,29 +215,21 @@ function renderHistory(entries) {
   }
 
   historyList.innerHTML = entries.map((e) => {
-    // Approval detection / auto-approval entries
-    if (e.type === "approval-detected" || e.type === "auto-approved") {
-      const icon = e.type === "auto-approved" ? "🤖" : "⚠️";
-      const label = e.type === "auto-approved" ? "Auto-aprobado" : "Aprobación pendiente";
-      const color = e.type === "auto-approved" ? "#2d6a4f" : "#e74c3c";
-      const targetBadge = e.target === "claude" ? '<span style="background:#d63031;color:#fff;padding:1px 6px;border-radius:4px;font-size:10px">Claude</span>' : '<span style="background:#0984e3;color:#fff;padding:1px 6px;border-radius:4px;font-size:10px">Codex</span>';
-      return `
-        <div class="tw-entry" style="border-left:3px solid ${color}">
-          <div class="tw-entry-header">
-            <span class="tw-entry-machine">${icon} ${e.machine} ${targetBadge}</span>
-            <span class="tw-entry-prompt" style="color:${color};font-weight:600">${label}</span>
-            <span class="tw-entry-time">${formatTime(e.sentAt)}</span>
-          </div>
-        </div>`;
-    }
+    const machineName = escapeHtml(e.machineName);
+    const targetLabel = escapeHtml(formatHistoryTarget(e.target));
+    const actionLabel = escapeHtml(formatHistoryAction(e.action));
+    const prompt = escapeHtml(e.prompt);
+    const errorText = e.status === "error" && e.error
+      ? ` <span style="color: var(--offline); font-weight: 600;">· ${escapeHtml(e.error)}</span>`
+      : "";
     const captureHtml = e.captureId
       ? `<div class="tw-terminal" id="capture-${e.captureId}"><span class="tw-terminal-loading">Capturando terminal...</span></div>`
       : "";
     return `
       <div class="tw-entry">
         <div class="tw-entry-header">
-          <span class="tw-entry-machine">${e.machineName} <span class="tw-entry-target">${e.target || "terminal"}</span><span class="tw-entry-status ${e.status}"></span></span>
-          <span class="tw-entry-prompt">${e.prompt}</span>
+          <span class="tw-entry-machine">${machineName} <span class="tw-entry-target">${actionLabel}</span><span class="tw-entry-target">${targetLabel}</span><span class="tw-entry-status ${e.status}"></span></span>
+          <span class="tw-entry-prompt">${prompt}${errorText}</span>
           <span class="tw-entry-time">${formatTime(e.sentAt)}</span>
         </div>
         ${captureHtml}
@@ -259,66 +274,302 @@ async function loadHistory() {
   }
 }
 
-// Tailscale status enrichment (IP, lastSeen) — does NOT override machine status
-async function loadTailscaleStatus() {
-  if (isStaticMode) return;
-  try {
-    const res = await fetch(apiUrl("/api/tailscale-status"), { cache: "no-store" });
-    if (!res.ok) return;
-    const data = await res.json();
-    tailscaleData = data.machines || {};
-    for (const m of machines) {
-      const ts = tailscaleData[m.id];
-      if (ts?.ip) m._tsIp = ts.ip;
-      if (ts?.lastSeen) m._tsLastSeen = ts.lastSeen;
-      if (ts?.tailscale?.curAddr) m._tsCurAddr = ts.tailscale.curAddr;
-      // Status comes from /api/machines (healthCheck), NOT overridden here
-    }
-  } catch { /* silently fail */ }
-}
-
 async function loadMachines() {
   try {
     const res = await fetch(apiUrl("/api/machines"), { cache: "no-store" });
     if (!res.ok) throw new Error("api unavailable");
+    const data = await res.json();
+    machines = data.machines;
+    isStaticMode = false;
+    syncTopActionVisibility();
+    renderMachineApproveList(latestSnapshots);
+  } catch {
+    try {
+      const res = await fetch("./machines.json?v=20260402-2", { cache: "no-store" });
       const data = await res.json();
       machines = data.machines;
-      isStaticMode = false;
-      await loadTailscaleStatus();
+      isStaticMode = true;
       syncTopActionVisibility();
-      renderMachineApproveList(null);
+      renderMachineApproveList(latestSnapshots);
     } catch {
-      try {
-        const res = await fetch("./machines.json?v=20260331-4", { cache: "no-store" });
-        const data = await res.json();
-        machines = data.machines;
-        isStaticMode = true;
-        syncTopActionVisibility();
-        renderMachineApproveList(null);
-      } catch {
-        // no machines
-      }
+      // no machines
+    }
   }
 }
 
 // Per-machine approve
 const machineApproveList = document.querySelector("#machineApproveList");
 
-function formatTimeShort(iso) {
-  try { return new Date(iso).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }); }
-  catch { return ""; }
+function formatCaptureTime(iso) {
+  try {
+    const value = new Date(iso);
+    if (!Number.isFinite(value.getTime())) return "";
+    return value.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  } catch {
+    return "";
+  }
+}
+
+function renderCaptureStamp(snap) {
+  const time = formatCaptureTime(snap?.updatedAt);
+  if (!time) return "";
+  return `<span class="tw-machine-monitor-time" title="Captura tomada a las ${time}">${time}</span>`;
+}
+
+function hasPreviewPayload(snap) {
+  return Boolean(
+    (snap?.type === "image" && snap.image) ||
+    (snap?.type === "images" && Array.isArray(snap.images) && snap.images.length > 0) ||
+    snap?.text
+  );
+}
+
+function hasVisualPreviewPayload(snap) {
+  return Boolean(
+    (snap?.type === "image" && snap.image) ||
+    (snap?.type === "images" && Array.isArray(snap.images) && snap.images.length > 0)
+  );
+}
+
+function getPreviewAgeMs(snap) {
+  const updatedAt = new Date(snap?.updatedAt || "").getTime();
+  return Number.isFinite(updatedAt) ? Date.now() - updatedAt : Number.POSITIVE_INFINITY;
 }
 
 function hasLivePreview(machine, snapshots) {
   const snap = snapshots?.[machine.id];
-  if (!snap?.updatedAt) return false;
-  const updatedAt = new Date(snap.updatedAt).getTime();
-  if (!Number.isFinite(updatedAt)) return false;
-  const hasVisual =
-    (snap.type === "image" && Boolean(snap.image)) ||
-    (snap.type === "images" && Array.isArray(snap.images) && snap.images.length > 0) ||
-    Boolean(snap.text);
-  return hasVisual && (Date.now() - updatedAt) <= LIVE_PREVIEW_WINDOW_MS;
+  return hasPreviewPayload(snap) && getPreviewAgeMs(snap) <= LIVE_PREVIEW_WINDOW_MS;
+}
+
+function hasLiveVisualPreview(machine, snapshots) {
+  const snap = snapshots?.[machine.id];
+  return hasVisualPreviewPayload(snap) && getPreviewAgeMs(snap) <= LIVE_PREVIEW_WINDOW_MS;
+}
+
+function getMachineStatusMeta(machine) {
+  return MACHINE_STATUS_META[machine.status] || { label: machine.status || "sin estado", tone: "off" };
+}
+
+function getPreviewMeta(machine, snap) {
+  if (hasLivePreview(machine, { [machine.id]: snap })) {
+    return { label: "preview vivo", tone: "ok" };
+  }
+  if (hasPreviewPayload(snap)) {
+    return { label: "preview antiguo", tone: "warn" };
+  }
+  if (ACTIVE_MACHINE_STATUSES.has(machine.status)) {
+    return { label: "sin preview", tone: "off" };
+  }
+  if (machine.status === "maintenance") {
+    return { label: "sin preview", tone: "warn" };
+  }
+  return { label: "sin preview", tone: "off" };
+}
+
+function getRouteMeta(machine) {
+  const lanTarget = machine.ssh?.ip_lan || machine.ssh?.host_local || "";
+  const tailscaleTarget = machine.ssh?.ip_tailscale || machine.ssh?.host || "";
+
+  if (lanTarget && tailscaleTarget) {
+    return {
+      label: "LAN + Tailscale",
+      tone: "hybrid",
+      target: `${lanTarget} · ${tailscaleTarget}`,
+      title: `Rutas disponibles: LAN ${lanTarget} | Tailscale ${tailscaleTarget}`
+    };
+  }
+
+  if (lanTarget) {
+    return {
+      label: "LAN",
+      tone: "lan",
+      target: lanTarget,
+      title: `Ruta LAN preferida: ${lanTarget}`
+    };
+  }
+
+  if (tailscaleTarget) {
+    return {
+      label: "Tailscale",
+      tone: "tailscale",
+      target: tailscaleTarget,
+      title: `Ruta Tailscale disponible: ${tailscaleTarget}`
+    };
+  }
+
+  return null;
+}
+
+function getChannelMeta(machine, remoteReady) {
+  if (remoteReady) {
+    return { label: "🤖 0", tone: "ok", title: "Canal remoto listo. Sin auto-aprobaciones." };
+  }
+  if (isStaticMode) {
+    return { label: "solo lectura", tone: "warn", title: "Esta URL no puede abrir canales remotos." };
+  }
+  if (ACTIVE_MACHINE_STATUSES.has(machine.status)) {
+    return { label: "sin canal", tone: "warn", title: "Equipo activo, pero sin canal remoto configurado." };
+  }
+  if (machine.status === "maintenance") {
+    return { label: "mantenimiento", tone: "warn", title: "Equipo reservado o en preparacion." };
+  }
+  return { label: "offline", tone: "off", title: "Equipo sin conexion remota disponible." };
+}
+
+function parseWatchdogTimestamp(iso) {
+  const value = new Date(iso || "").getTime();
+  return Number.isFinite(value) ? value : 0;
+}
+
+function isRecentWatchdogSignal(iso) {
+  const value = parseWatchdogTimestamp(iso);
+  return value > 0 && (Date.now() - value) <= WATCHDOG_SIGNAL_WINDOW_MS;
+}
+
+function getWatchdogSignalTone(status) {
+  if (status === "pending") return "pending";
+  if (status === "cooldown") return "cooldown";
+  return "auto-approved";
+}
+
+function formatWatchdogSignalStatus(status) {
+  if (status === "pending") return "esperando";
+  if (status === "cooldown") return "reaccionando";
+  return "autoaprobado";
+}
+
+function getMachineWatchdogSignals(machineId) {
+  const stats = watchdogStats?.[machineId];
+  if (!stats) return [];
+
+  const signals = Array.isArray(stats.currentSignals)
+    ? stats.currentSignals.filter((signal) => signal && signal.summary)
+    : [];
+
+  if (signals.length > 0) {
+    return [...signals].sort((a, b) => {
+      const priority = (signal) => ({
+        pending: 3,
+        cooldown: 2,
+        "auto-approved": 1
+      }[signal?.status] || 0);
+      return (
+        priority(b) - priority(a) ||
+        parseWatchdogTimestamp(b.detectedAt || b.resolvedAt) - parseWatchdogTimestamp(a.detectedAt || a.resolvedAt)
+      );
+    });
+  }
+
+  if (isRecentWatchdogSignal(stats.lastDetectionAt) && stats.lastDetectionSummary) {
+    return [{
+      target: stats.lastDetectionTarget || "auto",
+      label: stats.lastDetectionLabel || stats.lastDetectionSummary,
+      source: stats.lastDetectionSource || "",
+      summary: stats.lastDetectionSummary,
+      status: stats.lastDetectionStatus || "pending",
+      detectedAt: stats.lastDetectionAt,
+      resolvedAt: stats.lastResolutionAt || stats.lastApproval || stats.lastDetectionAt
+    }];
+  }
+
+  return [];
+}
+
+function getMachineWatchdogPriority(machineId) {
+  const signals = getMachineWatchdogSignals(machineId);
+  if (signals.some((signal) => signal.status === "pending")) return 4;
+  if (signals.some((signal) => signal.status === "cooldown")) return 3;
+  if (signals.some((signal) => signal.status === "auto-approved")) return 2;
+  const stats = watchdogStats?.[machineId];
+  const totalApprovals = (stats?.claudeCount || 0) + (stats?.codexCount || 0);
+  return totalApprovals > 0 ? 1 : 0;
+}
+
+function renderMachineWatchdogSignals(machineId) {
+  const signals = getMachineWatchdogSignals(machineId);
+  if (!signals.length) return "";
+
+  const chips = signals.slice(0, 2).map((signal) => {
+    const status = formatWatchdogSignalStatus(signal.status);
+    const tone = getWatchdogSignalTone(signal.status);
+    const time = formatTime(signal.resolvedAt || signal.detectedAt);
+    const title = `${signal.summary} · ${status}${time ? ` · ${time}` : ""}`;
+    return `<span class="tw-watchdog-chip ${tone}" title="${escapeHtml(title)}"><span class="tw-watchdog-chip-label">${escapeHtml(status)} · ${escapeHtml(signal.summary)}</span>${time ? `<span class="tw-watchdog-chip-time">${escapeHtml(time)}</span>` : ""}</span>`;
+  }).join("");
+
+  const extra = signals.length > 2
+    ? `<span class="tw-watchdog-chip" title="${signals.length - 2} detecciones adicionales">+${signals.length - 2}</span>`
+    : "";
+
+  return `<div class="tw-machine-watchdog" data-watchdog-signals="${machineId}">${chips}${extra}</div>`;
+}
+
+function renderMonitorContent(machine, snap) {
+  const multiLabels = ["Claude", "Studio", "Codex"];
+
+  if (snap && snap.type === "images") {
+    const t = Date.now();
+    const orients = snap.orientations || snap.images.map(() => "portrait");
+    return `<div class="tw-multi-monitor">${snap.images.map((imgPath, i) => {
+      const src = (imgPath.startsWith("/") ? apiUrl(imgPath) : imgPath) + `?t=${t}`;
+      return `<div class="tw-multi-screen ${orients[i]}"><img src="${src}" alt="${multiLabels[i]}"><span class="tw-screen-label">${multiLabels[i]}</span></div>`;
+    }).join("")}</div>${renderCaptureStamp(snap)}`;
+  }
+
+  if (snap && snap.type === "image") {
+    const imgSrc = snap.image.startsWith("/") ? apiUrl(snap.image) : snap.image;
+    const cacheBust = imgSrc.includes("?") ? `&t=${Date.now()}` : `?t=${Date.now()}`;
+    return `<img src="${imgSrc}${cacheBust}" alt="${machine.name}" style="width:100%;height:100%;object-fit:cover;border-radius:6px;">${renderCaptureStamp(snap)}`;
+  }
+
+  if (snap && snap.text) {
+    return `<pre>${snap.text.replace(/</g, "&lt;")}</pre>${renderCaptureStamp(snap)}`;
+  }
+
+  if (ACTIVE_MACHINE_STATUSES.has(machine.status)) {
+    return `<div class="tw-machine-monitor-empty"><strong>Equipo activo</strong><span>Sin preview vivo</span></div>`;
+  }
+
+  if (machine.status === "maintenance") {
+    return `<div class="tw-machine-monitor-empty"><strong>Mantenimiento</strong><span>Sin preview por ahora</span></div>`;
+  }
+
+  return `<div class="tw-machine-monitor-empty"><strong>Equipo offline</strong><span>Sin conexion reciente</span></div>`;
+}
+
+function getMachineSortScore(machine, snapshots) {
+  const snap = snapshots?.[machine.id];
+  const watchdogRank = getMachineWatchdogPriority(machine.id);
+  const statusRank = {
+    online: 4,
+    busy: 3,
+    idle: 2,
+    maintenance: 1,
+    offline: 0
+  }[machine.status] ?? 0;
+  const visualLiveRank = hasLiveVisualPreview(machine, snapshots) ? 5 : 0;
+  const visualPreviewRank = hasVisualPreviewPayload(snap) ? 2 : 0;
+  const livePreviewRank = hasLivePreview(machine, snapshots) ? 1 : 0;
+  const hasPreviewRank = hasPreviewPayload(snap) ? 1 : 0;
+  const remoteRank = machine.ssh?.enabled || machine.automation?.enabled ? 1 : 0;
+  const updatedAtRank = Number.isFinite(new Date(snap?.updatedAt || "").getTime()) ? new Date(snap.updatedAt).getTime() : 0;
+
+  return (
+    (watchdogRank * 100_000_000_000_000) +
+    (visualLiveRank * 1_000_000_000_000) +
+    (statusRank * 10_000_000_000) +
+    (remoteRank * 1_000_000_000) +
+    (visualPreviewRank * 10_000_000) +
+    (livePreviewRank * 1_000_000) +
+    (hasPreviewRank * 100_000) +
+    updatedAtRank
+  );
+}
+
+function compareMachinesForDisplay(a, b, snapshots) {
+  const score = getMachineSortScore(b, snapshots) - getMachineSortScore(a, snapshots);
+  if (score !== 0) return score;
+  return a.name.localeCompare(b.name, "es", { sensitivity: "base" });
 }
 
 function renderMachineRow(m, snapshots) {
@@ -326,90 +577,39 @@ function renderMachineRow(m, snapshots) {
   const snap = snapshots?.[m.id];
   const remoteReady = !isStaticMode && Boolean(m.ssh?.enabled || m.automation?.enabled);
   const defaultTarget = m.platform === "Windows" ? "terminal" : "claude";
-  let monitorContent;
-  const multiLabels = ["Claude", "Studio", "Codex"];
-
-  if (snap && snap.type === "images") {
-    const t = Date.now();
-    const orients = snap.orientations || snap.images.map(() => "portrait");
-    monitorContent = `<div class="tw-multi-monitor">${snap.images.map((imgPath, i) => {
-      const src = (imgPath.startsWith("/") ? apiUrl(imgPath) : imgPath) + `?t=${t}`;
-      return `<div class="tw-multi-screen ${orients[i]}"><img src="${src}" alt="${multiLabels[i]}"><span class="tw-screen-label">${multiLabels[i]}</span></div>`;
-    }).join("")}</div><span class="tw-machine-monitor-time">${formatTimeShort(snap.updatedAt)}</span>`;
-  } else if (snap && snap.type === "image") {
-    const imgSrc = snap.image.startsWith("/") ? apiUrl(snap.image) : snap.image;
-    const cacheBust = imgSrc.includes("?") ? `&t=${Date.now()}` : `?t=${Date.now()}`;
-    monitorContent = `<img src="${imgSrc}${cacheBust}" alt="${m.name}" style="width:100%;height:100%;object-fit:cover;border-radius:6px;"><span class="tw-machine-monitor-time">${formatTimeShort(snap.updatedAt)}</span>`;
-  } else if (snap && snap.text) {
-    monitorContent = `<pre>${snap.text.replace(/</g, "&lt;")}</pre><span class="tw-machine-monitor-time">${formatTimeShort(snap.updatedAt)}</span>`;
-  } else {
-    monitorContent = `<div class="tw-machine-monitor-empty">Sin señal</div>`;
-  }
+  const statusMeta = getMachineStatusMeta(m);
+  const previewMeta = getPreviewMeta(m, snap);
+  const channelMeta = getChannelMeta(m, remoteReady);
+  const routeMeta = getRouteMeta(m);
+  const monitorContent = renderMonitorContent(m, snap);
 
   return `
     <div class="tw-machine-row tw-machine-row-${group}" data-id="${m.id}">
       <div class="tw-machine-monitor small" data-monitor="${m.id}">${monitorContent}</div>
-      <div class="tw-machine-body">
       <div class="tw-machine-label">
-        <span class="tw-machine-name">${m.name}</span>
-        <span class="tw-status-pill ${m.status || "offline"}">${m.status || "offline"}</span><br>
-        <span class="tw-machine-member">${m.member} · ${m.platform}${m.role ? " · " + m.role : ""}</span>
+        <span class="tw-machine-name">${escapeHtml(m.name)}</span><br>
+        <span class="tw-machine-member">${escapeHtml(m.member)} · ${escapeHtml(m.platform)}</span>
+        ${routeMeta ? `<div class="tw-machine-route" title="${escapeHtml(routeMeta.title)}"><span class="tw-machine-route-badge ${routeMeta.tone}">${escapeHtml(routeMeta.label)}</span><span class="tw-machine-route-target">${escapeHtml(routeMeta.target)}</span></div>` : ""}
+        <div class="tw-machine-statuses">
+          <span class="tw-machine-status tw-machine-status-${statusMeta.tone}">${statusMeta.label}</span>
+          <span class="tw-machine-status tw-machine-status-${previewMeta.tone}" data-preview-status="${m.id}">${previewMeta.label}</span>
+        </div>
         ${m.unitType === "worker" ? `<div class="tw-machine-caps"><span class="tw-machine-cap tw-machine-cap-kind">PC</span>${(m.capabilities || []).map((cap) => `<span class="tw-machine-cap">${cap}</span>`).join("")}</div>` : ""}
-        <span class="tw-info-wrapper">
-          <button class="tw-info-btn" data-info-toggle="${m.id}" title="Info del equipo">ℹ</button>
-          <div class="tw-info-dropdown" data-info-panel="${m.id}">
-            <div class="tw-info-title">
-              <span class="tw-info-status ${m.status || "offline"}"></span>
-              ${m.name}
-              ${m.role ? `<span class="tw-info-badge">${m.role}</span>` : ""}
-            </div>
-            <div class="tw-info-row"><span class="tw-info-key">Operador</span><span class="tw-info-val">${m.member || "—"}</span></div>
-            <div class="tw-info-row"><span class="tw-info-key">Funcion</span><span class="tw-info-val">${m.machineRole || "—"}</span></div>
-            <div class="tw-info-row"><span class="tw-info-key">Plataforma</span><span class="tw-info-val">${m.platform || "—"}</span></div>
-            <div class="tw-info-row"><span class="tw-info-key">Ubicacion</span><span class="tw-info-val">${m.location || "—"}</span></div>
-            <div class="tw-info-row"><span class="tw-info-key">Estado</span><span class="tw-info-val" style="color:${m.status === "online" ? "#2d6a4f" : m.status === "idle" ? "#3e7ea0" : "#8b5b63"}">${m.status || "desconocido"}</span></div>
-            ${m.ssh?.ip_tailscale || m._tsIp ? `<div class="tw-info-row"><span class="tw-info-key">IP Tailscale</span><span class="tw-info-val" style="font-family:monospace;font-size:10px">${m._tsIp || m.ssh.ip_tailscale}</span></div>` : ""}
-            ${m.ssh?.host ? `<div class="tw-info-row"><span class="tw-info-key">SSH</span><span class="tw-info-val tw-ssh-copy" style="font-size:10px;cursor:pointer" title="Clic para copiar" onclick="event.stopPropagation(); navigator.clipboard.writeText('ssh ${m.ssh.user || "csilvasantin"}@${m.ssh.ip_tailscale || m.ssh.host}'); this.textContent='Copiado!'; setTimeout(()=>this.textContent='${m.ssh.user || "csilvasantin"}@${m.ssh.host}',1500)">${m.ssh.user || "csilvasantin"}@${m.ssh.host}</span></div>` : ""}
-            <div class="tw-info-row"><span class="tw-info-key">Ultima vez</span><span class="tw-info-val">${timeAgo(m._tsLastSeen || m.lastSeen)}</span></div>
-            ${snap?.updatedAt ? `<div class="tw-info-row"><span class="tw-info-key">Captura</span><span class="tw-info-val">${timeAgo(snap.updatedAt)}</span></div>` : ""}
-            ${snap?.claudeState || snap?.codexState ? `<div class="tw-info-row"><span class="tw-info-key">Apps</span><span class="tw-info-val">${snap?.claudeState ? '<span style="color:#d63031">C:</span>' + snap.claudeState : ""} ${snap?.codexState ? '<span style="color:#0984e3">X:</span>' + snap.codexState : ""}</span></div>` : ""}
-            ${m.agentProfile ? `<div class="tw-info-row"><span class="tw-info-key">Perfil agente</span><span class="tw-info-val">${m.agentProfile}</span></div>` : ""}
-            ${(m.capabilities || []).length ? `<div class="tw-info-row"><span class="tw-info-key">Capacidades</span><span class="tw-info-val">${m.capabilities.join(", ")}</span></div>` : ""}
-            ${m.currentFocus ? `<div class="tw-info-focus"><div class="tw-info-focus-label">Foco actual</div>${m.currentFocus}</div>` : ""}
-            ${m.note ? `<div class="tw-info-focus"><div class="tw-info-focus-label">Nota</div>${m.note}</div>` : ""}
-          </div>
+        <span class="tw-app-status">
+          ${snap?.claudeState ? `<span class="tw-app-tag claude" title="Claude: ${snap.claudeState}">C</span>` : ""}
+          ${snap?.codexState ? `<span class="tw-app-tag codex" title="Codex: ${snap.codexState}">X</span>` : ""}
         </span>
+        ${renderMachineWatchdogSignals(m.id)}
       </div>
-      <div class="tw-machine-actions">
-        <input class="tw-machine-input" data-machine="${m.id}" type="text" placeholder="Prompt para ${m.member}..." ${remoteReady ? "" : "disabled"}>
-        <select class="tw-approve-sm" data-machine-target="${m.id}" style="background:var(--panel);color:var(--ink);border:1px solid var(--line);padding:8px 6px;font-size:11px;border-radius:10px;">
-          <option value="claude" ${defaultTarget === "claude" ? "selected" : ""}>Claude</option>
-          <option value="codex" ${defaultTarget === "codex" ? "selected" : ""}>Codex</option>
-          <option value="terminal" ${defaultTarget === "terminal" ? "selected" : ""}>Terminal</option>
-        </select>
-        <button class="tw-machine-send" data-machine-send="${m.id}" ${remoteReady ? "" : "disabled"}>${remoteReady ? "Enviar" : "Pendiente"}</button>
-        <button class="tw-machine-approve" data-machine-approve="${m.id}" ${remoteReady ? "" : "disabled"}>${remoteReady ? "Aprobar" : "Sin canal"}</button>
-        <span class="tw-auto-badge ${m.status === "online" || m.status === "busy" ? "" : "tw-auto-badge-off"}" data-watchdog-machine="${m.id}">${remoteReady ? "🤖 0" : m.status || "offline"}</span>
-        ${group === "council" && remoteReady ? `
-        <div class="tw-pillar-machine" data-pillar-machine="${m.id}">
-          <div class="tw-pillar-group">
-            <span class="tw-pillar-icon tw-pillar-t" title="Telegram"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg></span>
-            <button class="tw-pillar-act tw-pillar-act-open" data-pillar-action="open" data-pillar-target="${m.id}" data-pillar-app="telegram" type="button" title="Abrir Telegram">Abrir</button>
-            <button class="tw-pillar-act tw-pillar-act-close" data-pillar-action="close" data-pillar-target="${m.id}" data-pillar-app="telegram" type="button" title="Cerrar Telegram">Cerrar</button>
-          </div>
-          <div class="tw-pillar-group">
-            <span class="tw-pillar-icon tw-pillar-x" title="Codex"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M21 2H3a1 1 0 0 0-1 1v18a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1V3a1 1 0 0 0-1-1zm-1 18H4V4h16v16zM6 7h2v2H6V7zm4 0h8v2h-8V7zm-4 4h2v2H6v-2zm4 4h8v2h-8v-2zm0-4h8v2h-8v-2zm-4 4h2v2H6v-2z"/></svg></span>
-            <button class="tw-pillar-act tw-pillar-act-open" data-pillar-action="open" data-pillar-target="${m.id}" data-pillar-app="codex" type="button" title="Abrir Codex">Abrir</button>
-            <button class="tw-pillar-act tw-pillar-act-close" data-pillar-action="close" data-pillar-target="${m.id}" data-pillar-app="codex" type="button" title="Cerrar Codex">Cerrar</button>
-          </div>
-          <div class="tw-pillar-group">
-            <span class="tw-pillar-icon tw-pillar-c" title="Claude"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h-2v-2h2v2zm0-4h-2V7h2v6zm4 4h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg></span>
-            <button class="tw-pillar-act tw-pillar-act-open" data-pillar-action="open" data-pillar-target="${m.id}" data-pillar-app="claude" type="button" title="Abrir Claude">Abrir</button>
-            <button class="tw-pillar-act tw-pillar-act-close" data-pillar-action="close" data-pillar-target="${m.id}" data-pillar-app="claude" type="button" title="Cerrar Claude">Cerrar</button>
-          </div>
-        </div>` : ""}
-      </div>
-      </div>
+      <input class="tw-machine-input" data-machine="${m.id}" type="text" placeholder="Prompt para ${m.member}..." ${remoteReady ? "" : "disabled"}>
+      <select class="tw-approve-sm" data-machine-target="${m.id}" style="background:var(--panel);color:var(--ink);border:1px solid var(--line);padding:8px 6px;font-size:11px;border-radius:10px;">
+        <option value="claude" ${defaultTarget === "claude" ? "selected" : ""}>Claude</option>
+        <option value="codex" ${defaultTarget === "codex" ? "selected" : ""}>Codex</option>
+        <option value="terminal" ${defaultTarget === "terminal" ? "selected" : ""}>Terminal</option>
+      </select>
+      <button class="tw-machine-send" data-machine-send="${m.id}" ${remoteReady ? "" : "disabled"}>${remoteReady ? "Enviar" : "Pendiente"}</button>
+      <button class="tw-machine-approve" data-machine-approve="${m.id}" ${remoteReady ? "" : "disabled"}>${remoteReady ? "Aprobar" : "Sin canal"}</button>
+      <span class="tw-auto-badge ${channelMeta.tone === "ok" ? "" : `tw-auto-badge-${channelMeta.tone}`} ${remoteReady ? "" : "tw-auto-badge-off"}" data-watchdog-machine="${m.id}" data-channel-ready="${remoteReady ? "true" : "false"}" title="${channelMeta.title}">${channelMeta.label}</span>
     </div>`;
 }
 
@@ -420,11 +620,7 @@ function renderMachineApproveList(snapshots) {
     return;
   }
 
-  const sortWithinGroup = (items) => [...items].sort((a, b) => {
-    const aOnline = snapshots?.[a.id] ? 1 : 0;
-    const bOnline = snapshots?.[b.id] ? 1 : 0;
-    return bOnline - aOnline;
-  });
+  const sortWithinGroup = (items) => [...items].sort((a, b) => compareMachinesForDisplay(a, b, snapshots));
 
   const grouped = {
     council: sortWithinGroup(filtered.filter((m) => (m.unitType || "council") === "council")),
@@ -435,25 +631,15 @@ function renderMachineApproveList(snapshots) {
   for (const group of ["council", "worker"]) {
     const items = grouped[group];
     if (!items.length) continue;
-    const shouldExpand = items.some((m) => hasLivePreview(m, snapshots));
+    const shouldExpand = items.some((m) => ACTIVE_MACHINE_STATUSES.has(m.status));
     const expanded = shouldExpand ? "true" : "false";
     const hidden = shouldExpand ? "" : "hidden";
-    const onlineCount = items.filter((m) => m.status === "online" || m.status === "idle" || m.status === "busy").length;
-    const pillarBar = group === "council" ? `
-          <div class="tw-pillar-bar">
-            <button class="tw-pillar-global tw-pillar-open" data-pillar-all="open" type="button">Abrir Todo</button>
-            <button class="tw-pillar-global tw-pillar-close" data-pillar-all="close" type="button">Cerrar Todo</button>
-          </div>` : "";
-
     sections.push(`
       <section class="tw-group-block tw-group-block-${group}">
-        <div class="tw-group-header">
-          <button class="tw-group-toggle tw-group-${group}" data-group-toggle="${group}" aria-expanded="${expanded}" type="button">
-            <span>${GROUP_LABELS[group] || group} <span class="tw-group-count">${onlineCount}/${items.length} online</span></span>
-            <span class="tw-group-toggle-icon">${shouldExpand ? "−" : "+"}</span>
-          </button>
-          ${pillarBar}
-        </div>
+        <button class="tw-group-toggle tw-group-${group}" data-group-toggle="${group}" aria-expanded="${expanded}" type="button">
+          <span>${GROUP_LABELS[group] || group}</span>
+          <span class="tw-group-toggle-icon">${shouldExpand ? "−" : "+"}</span>
+        </button>
         <div class="tw-group-rows" data-group-panel="${group}" ${hidden}>
           ${items.map((m) => renderMachineRow(m, snapshots)).join("")}
         </div>
@@ -549,28 +735,6 @@ function renderMachineApproveList(snapshots) {
     });
   });
 
-  // Toggle machine info dropdown
-  machineApproveList.querySelectorAll(".tw-info-btn").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const id = btn.dataset.infoToggle;
-      const panel = machineApproveList.querySelector(`.tw-info-dropdown[data-info-panel="${id}"]`);
-      const wasOpen = panel.classList.contains("open");
-      // Close all open dropdowns first
-      machineApproveList.querySelectorAll(".tw-info-dropdown.open").forEach((p) => p.classList.remove("open"));
-      machineApproveList.querySelectorAll(".tw-info-btn.open").forEach((b) => b.classList.remove("open"));
-      if (!wasOpen) {
-        panel.classList.add("open");
-        btn.classList.add("open");
-      }
-    });
-  });
-  // Close info dropdown when clicking outside
-  document.addEventListener("click", () => {
-    machineApproveList.querySelectorAll(".tw-info-dropdown.open").forEach((p) => p.classList.remove("open"));
-    machineApproveList.querySelectorAll(".tw-info-btn.open").forEach((b) => b.classList.remove("open"));
-  });
-
   // Enter to send per-machine
   machineApproveList.querySelectorAll(".tw-machine-input").forEach((input) => {
     input.addEventListener("keydown", (e) => {
@@ -582,67 +746,8 @@ function renderMachineApproveList(snapshots) {
     });
   });
 
-  // ── Pillar controls ──
-
-  // Global: Abrir Todo / Cerrar Todo (council only)
-  machineApproveList.querySelectorAll("[data-pillar-all]").forEach((btn) => {
-    btn.addEventListener("click", async (e) => {
-      e.stopPropagation();
-      const action = btn.dataset.pillarAll;
-      const label = action === "open" ? "ABRIR" : "CERRAR";
-      if (!confirm(`Vas a ${label} Telegram, Codex y Claude Code en todas las maquinas del Consejo. ¿Continuar?`)) return;
-
-      btn.disabled = true;
-      const orig = btn.textContent;
-      btn.textContent = "...";
-
-      try {
-        const res = await fetch(apiUrl("/api/teamwork/pillar-all"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action })
-        });
-        const data = await res.json();
-        const ok = data.results?.filter((r) => r.ok).length || 0;
-        const fail = data.results?.filter((r) => !r.ok && !r.skipped).length || 0;
-        btn.textContent = `✅ ${ok} | ❌ ${fail}`;
-        setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 3000);
-      } catch {
-        btn.textContent = "Error";
-        setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 2000);
-      }
-    });
-  });
-
-  // Per-machine pillar action (Abrir / Cerrar) — direct buttons, no popup
-  machineApproveList.querySelectorAll("[data-pillar-action]").forEach((btn) => {
-    btn.addEventListener("click", async (e) => {
-      e.stopPropagation();
-      const action = btn.dataset.pillarAction;
-      const machineId = btn.dataset.pillarTarget;
-      const app = btn.dataset.pillarApp;
-
-      btn.disabled = true;
-      const orig = btn.textContent;
-      btn.textContent = "...";
-
-      try {
-        const res = await fetch(apiUrl("/api/teamwork/pillar"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ machineId, app, action })
-        });
-        const data = await res.json();
-        btn.textContent = data.ok ? "✓" : "✗";
-        btn.classList.add(data.ok ? "tw-pillar-act-ok" : "tw-pillar-act-fail");
-        setTimeout(() => { btn.textContent = orig; btn.disabled = false; btn.classList.remove("tw-pillar-act-ok", "tw-pillar-act-fail"); }, 2000);
-      } catch {
-        btn.textContent = "✗";
-        btn.classList.add("tw-pillar-act-fail");
-        setTimeout(() => { btn.textContent = orig; btn.disabled = false; btn.classList.remove("tw-pillar-act-fail"); }, 2000);
-      }
-    });
-  });
+  updateWatchdogRows();
+  renderWatchdogOverview();
 }
 
 // Approve buttons
@@ -653,7 +758,7 @@ const approveCodexResult = document.querySelector("#approveCodexResult");
 
 async function approveAll(target, btn, resultEl) {
   btn.disabled = true;
-  btn.textContent = "...";
+  btn.textContent = "Aprobando...";
   resultEl.textContent = "";
   resultEl.className = "tw-approve-result";
 
@@ -661,30 +766,28 @@ async function approveAll(target, btn, resultEl) {
     const res = await fetch(apiUrl("/api/teamwork/approve"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ target, onlyPending: true })
+      body: JSON.stringify({ target })
     });
     const data = await res.json();
     const okList = data.results.filter((r) => r.ok);
     const failList = data.results.filter((r) => !r.ok && !r.skipped);
     const skipped = data.results.filter((r) => r.skipped);
 
+    // Visual feedback with icons
     const parts = [];
     for (const r of okList) parts.push(`✅ ${r.machine}`);
     for (const r of failList) parts.push(`❌ ${r.machine}`);
-    if (skipped.length) parts.push(`⏭️ ${skipped.length} sin app`);
+    if (skipped.length) parts.push(`⏭️ ${skipped.length} offline`);
 
-    if (okList.length === 0 && failList.length === 0) {
-      resultEl.innerHTML = `Sin equipos con ${target === "claude" ? "Claude" : "Codex"} pendiente`;
-      resultEl.classList.add("tw-approve-error");
-    } else {
-      resultEl.innerHTML = `<strong>${okList.length} aprobados</strong> — ${parts.join(" | ")}`;
-      resultEl.classList.add(okList.length > 0 ? "tw-approve-success" : "tw-approve-error");
-    }
+    resultEl.innerHTML = `<strong>${okList.length} aprobados</strong> — ${parts.join(" | ")}`;
+    resultEl.classList.add(okList.length > 0 ? "tw-approve-success" : "tw-approve-error");
 
+    // Refresh snapshots after 4s to show updated screens (save result first)
     const savedResult = resultEl.innerHTML;
     const savedClass = resultEl.className;
     setTimeout(() => {
       loadSnapshots();
+      // Restore result after snapshot refresh
       setTimeout(() => {
         resultEl.innerHTML = savedResult;
         resultEl.className = savedClass;
@@ -696,7 +799,7 @@ async function approveAll(target, btn, resultEl) {
   }
 
   btn.disabled = false;
-  btn.textContent = target === "claude" ? "Claude" : "Codex";
+  btn.textContent = target === "claude" ? "Aprobar Claude" : "Aprobar Codex";
 }
 
 quickInput.addEventListener("keydown", (e) => {
@@ -733,51 +836,20 @@ function updateSnapshotsInPlace(snapshots) {
     if (!row) return renderMachineApproveList(snapshots); // first render
     const mon = row.querySelector(".tw-machine-monitor");
     const snap = snapshots?.[m.id];
-    const multiLabels = ["Studio", "Claude", "Codex"];
-    if (snap && snap.type === "images") {
-      const t = Date.now();
-      const imgs = mon.querySelectorAll(".tw-multi-screen img");
-      if (imgs.length === snap.images.length) {
-        snap.images.forEach((imgPath, i) => {
-          const src = (imgPath.startsWith("/") ? apiUrl(imgPath) : imgPath) + `?t=${t}`;
-          const preload = new Image();
-          preload.onload = () => { imgs[i].src = src; };
-          preload.src = src;
-        });
-        const timeEl = mon.querySelector(".tw-machine-monitor-time");
-        if (timeEl) timeEl.textContent = formatTimeShort(snap.updatedAt);
-      } else {
-        const orients = snap.orientations || snap.images.map(() => "portrait");
-        mon.innerHTML = `<div class="tw-multi-monitor">${snap.images.map((imgPath, i) => {
-          const src = (imgPath.startsWith("/") ? apiUrl(imgPath) : imgPath) + `?t=${t}`;
-          return `<div class="tw-multi-screen ${orients[i]}"><img src="${src}" alt="${multiLabels[i]}"><span class="tw-screen-label">${multiLabels[i]}</span></div>`;
-        }).join("")}</div><span class="tw-machine-monitor-time">${formatTimeShort(snap.updatedAt)}</span>`;
-      }
-    } else if (snap && snap.type === "image") {
-      const imgSrc = snap.image.startsWith("/") ? apiUrl(snap.image) : snap.image;
-      const cacheBust = imgSrc.includes("?") ? `&t=${Date.now()}` : `?t=${Date.now()}`;
-      const newSrc = `${imgSrc}${cacheBust}`;
-      const img = mon.querySelector("img");
-      if (img) {
-        const preload = new Image();
-        preload.onload = () => {
-          img.src = newSrc;
-          const timeEl = mon.querySelector(".tw-machine-monitor-time");
-          if (timeEl) timeEl.textContent = formatTimeShort(snap.updatedAt);
-        };
-        preload.src = newSrc;
-      } else {
-        mon.innerHTML = `<img src="${newSrc}" alt="${m.name}" style="width:100%;height:100%;object-fit:cover;border-radius:6px;"><span class="tw-machine-monitor-time">${formatTimeShort(snap.updatedAt)}</span>`;
-      }
-    } else if (snap && snap.text) {
-      mon.innerHTML = `<pre>${snap.text.replace(/</g, "&lt;")}</pre><span class="tw-machine-monitor-time">${formatTimeShort(snap.updatedAt)}</span>`;
-    }
+    if (mon) mon.innerHTML = renderMonitorContent(m, snap);
     // Update app badges
     const statusEl = row.querySelector(".tw-app-status");
     if (statusEl) {
       statusEl.innerHTML =
         (snap?.claudeState ? `<span class="tw-app-tag claude" title="Claude: ${snap.claudeState}">C</span>` : "") +
         (snap?.codexState ? `<span class="tw-app-tag codex" title="Codex: ${snap.codexState}">X</span>` : "");
+    }
+    const previewEl = row.querySelector(`[data-preview-status="${m.id}"]`);
+    if (previewEl) {
+      const previewMeta = getPreviewMeta(m, snap);
+      previewEl.textContent = previewMeta.label;
+      previewEl.className = `tw-machine-status tw-machine-status-${previewMeta.tone}`;
+      previewEl.dataset.previewStatus = m.id;
     }
   }
 
@@ -786,33 +858,45 @@ function updateSnapshotsInPlace(snapshots) {
     const panel = machineApproveList.querySelector(`[data-group-panel="${group}"]`);
     if (!panel) continue;
     const rows = [...panel.querySelectorAll(".tw-machine-row")];
-    const sorted = [...rows].sort((a, b) => (snapshots?.[b.dataset.id] ? 1 : 0) - (snapshots?.[a.dataset.id] ? 1 : 0));
+    const sorted = [...rows].sort((a, b) => {
+      const aMachine = machines.find((m) => m.id === a.dataset.id);
+      const bMachine = machines.find((m) => m.id === b.dataset.id);
+      return compareMachinesForDisplay(aMachine, bMachine, snapshots);
+    });
     const orderChanged = rows.some((r, i) => r !== sorted[i]);
     if (orderChanged) sorted.forEach((row) => panel.appendChild(row));
   }
+
+  updateWatchdogRows();
 }
 
-let firstSnapshotLoad = true;
 async function loadSnapshots() {
   try {
     const res = await fetch(apiUrl("/api/teamwork/snapshots"), { cache: "no-store" });
     const data = await res.json();
     if (data.ok) {
-      if (firstSnapshotLoad) {
-        // First load: full re-render to expand panels with live previews
-        firstSnapshotLoad = false;
-        renderMachineApproveList(data.snapshots);
+      latestSnapshots = data.snapshots || {};
+      const hasRows = machineApproveList.querySelector(".tw-machine-row");
+      if (hasRows) {
+        updateSnapshotsInPlace(latestSnapshots);
       } else {
-        const hasRows = machineApproveList.querySelector(".tw-machine-row");
-        if (hasRows) {
-          updateSnapshotsInPlace(data.snapshots);
-        } else {
-          renderMachineApproveList(data.snapshots);
-        }
+        renderMachineApproveList(latestSnapshots);
       }
     }
   } catch {
-    // silently fail
+    if (!isStaticMode) return;
+    try {
+      const res = await fetch("./snapshots.json?v=20260402-2", { cache: "no-store" });
+      latestSnapshots = await res.json();
+      const hasRows = machineApproveList.querySelector(".tw-machine-row");
+      if (hasRows) {
+        updateSnapshotsInPlace(latestSnapshots);
+      } else {
+        renderMachineApproveList(latestSnapshots);
+      }
+    } catch {
+      // silently fail
+    }
   }
 }
 
@@ -821,6 +905,7 @@ async function loadSnapshots() {
 const watchdogToggle = document.querySelector("#watchdogToggle");
 const watchdogPulse = document.querySelector("#watchdogPulse");
 let watchdogStats = {};
+let watchdogLog = [];
 
 watchdogToggle.addEventListener("change", async () => {
   const enabled = watchdogToggle.checked;
@@ -834,34 +919,6 @@ watchdogToggle.addEventListener("change", async () => {
   } catch { /* ignore */ }
 });
 
-// ─── Telegram alerts toggle ──────────────────────────────────────────
-
-const telegramToggle = document.querySelector("#telegramToggle");
-const telegramPulse = document.querySelector("#telegramPulse");
-
-telegramToggle.addEventListener("change", async () => {
-  const enabled = telegramToggle.checked;
-  telegramPulse.classList.toggle("off", !enabled);
-  try {
-    await fetch(apiUrl("/api/teamwork/telegram"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ enabled })
-    });
-  } catch { /* ignore */ }
-});
-
-async function loadTelegramState() {
-  try {
-    const res = await fetch(apiUrl("/api/teamwork/telegram"), { cache: "no-store" });
-    const data = await res.json();
-    if (data.ok) {
-      telegramToggle.checked = data.enabled;
-      telegramPulse.classList.toggle("off", !data.enabled);
-    }
-  } catch { /* ignore */ }
-}
-
 async function loadWatchdogStats() {
   try {
     const res = await fetch(apiUrl("/api/teamwork/watchdog"), { cache: "no-store" });
@@ -870,23 +927,121 @@ async function loadWatchdogStats() {
       watchdogToggle.checked = data.enabled;
       watchdogPulse.classList.toggle("off", !data.enabled);
       watchdogStats = data.perMachine || {};
-      updateWatchdogBadges();
+      watchdogLog = Array.isArray(data.log) ? data.log : [];
+      updateWatchdogUI();
     }
   } catch { /* ignore */ }
 }
 
-let alertDismissed = false;
-let alertDismissedAt = 0;
+function renderWatchdogOverview() {
+  if (!watchdogOverview) return;
+
+  const councilMachines = machines.filter((machine) => (machine.unitType || "council") === "council");
+  const waiting = [];
+  const recent = [];
+
+  for (const machine of councilMachines) {
+    for (const signal of getMachineWatchdogSignals(machine.id)) {
+      const entry = { machine, signal };
+      if (signal.status === "pending" || signal.status === "cooldown") waiting.push(entry);
+      else recent.push(entry);
+    }
+  }
+
+  waiting.sort((a, b) => parseWatchdogTimestamp(b.signal.detectedAt) - parseWatchdogTimestamp(a.signal.detectedAt));
+  recent.sort((a, b) => parseWatchdogTimestamp(b.signal.resolvedAt || b.signal.detectedAt) - parseWatchdogTimestamp(a.signal.resolvedAt || a.signal.detectedAt));
+
+  if (waiting.length > 0) {
+    watchdogOverview.className = "tw-watchdog-overview hot";
+    watchdogOverview.innerHTML = `
+      <div class="tw-watchdog-overview-title">
+        <span>Consejo atento</span>
+        <span class="tw-watchdog-overview-meta">${waiting.length} esperando reaccion</span>
+      </div>
+      <div class="tw-watchdog-overview-body">
+        ${waiting.slice(0, 4).map(({ machine, signal }) => `<span class="tw-watchdog-chip pending" title="${escapeHtml(`${machine.name} · ${signal.summary}`)}"><span class="tw-watchdog-chip-label">${escapeHtml(machine.member || machine.name)} · ${escapeHtml(signal.summary)}</span><span class="tw-watchdog-chip-time">${escapeHtml(formatTime(signal.detectedAt))}</span></span>`).join("")}
+      </div>
+    `;
+    return;
+  }
+
+  if (recent.length > 0) {
+    watchdogOverview.className = "tw-watchdog-overview recent";
+    watchdogOverview.innerHTML = `
+      <div class="tw-watchdog-overview-title">
+        <span>Ultima reaccion del Consejo</span>
+        <span class="tw-watchdog-overview-meta">${recent.length} recientes</span>
+      </div>
+      <div class="tw-watchdog-overview-body">
+        ${recent.slice(0, 4).map(({ machine, signal }) => `<span class="tw-watchdog-chip auto-approved" title="${escapeHtml(`${machine.name} · ${signal.summary}`)}"><span class="tw-watchdog-chip-label">${escapeHtml(machine.member || machine.name)} · ${escapeHtml(signal.summary)}</span><span class="tw-watchdog-chip-time">${escapeHtml(formatTime(signal.resolvedAt || signal.detectedAt))}</span></span>`).join("")}
+      </div>
+    `;
+    return;
+  }
+
+  const latestLog = watchdogLog.length ? watchdogLog[watchdogLog.length - 1] : null;
+  watchdogOverview.className = "tw-watchdog-overview";
+  watchdogOverview.innerHTML = `
+    <div class="tw-watchdog-overview-title">
+      <span>Consejo atento</span>
+      <span class="tw-watchdog-overview-meta">${watchdogToggle.checked ? "watchdog activo" : "watchdog pausado"}</span>
+    </div>
+    <div class="tw-watchdog-overview-empty">${latestLog ? `Sin esperas ahora. Ultima autoaprobacion: ${escapeHtml(latestLog.machine)} · ${escapeHtml(latestLog.summary || latestLog.target || "Aprobacion")} · ${escapeHtml(formatTime(latestLog.at))}` : "Sin señales recientes de aprobacion en el Consejo."}</div>
+  `;
+}
+
+function updateWatchdogRows() {
+  document.querySelectorAll(".tw-machine-row").forEach((row) => {
+    const machineId = row.dataset.id;
+    const signalMarkup = renderMachineWatchdogSignals(machineId);
+    const signalEl = row.querySelector(`[data-watchdog-signals="${machineId}"]`);
+    if (signalMarkup) {
+      if (signalEl) signalEl.outerHTML = signalMarkup;
+      else row.querySelector(".tw-machine-label")?.insertAdjacentHTML("beforeend", signalMarkup);
+    } else if (signalEl) {
+      signalEl.remove();
+    }
+
+    const signals = getMachineWatchdogSignals(machineId);
+    const hasWaiting = signals.some((signal) => signal.status === "pending" || signal.status === "cooldown");
+    const hasRecent = !hasWaiting && signals.length > 0;
+    row.classList.toggle("tw-machine-row-alert", hasWaiting);
+    row.classList.toggle("tw-machine-row-recent", hasRecent);
+  });
+}
+
+function resortMachineRows() {
+  for (const group of ["council", "worker"]) {
+    const panel = machineApproveList.querySelector(`[data-group-panel="${group}"]`);
+    if (!panel) continue;
+    const rows = [...panel.querySelectorAll(".tw-machine-row")];
+    const sorted = [...rows].sort((a, b) => {
+      const aMachine = machines.find((machine) => machine.id === a.dataset.id);
+      const bMachine = machines.find((machine) => machine.id === b.dataset.id);
+      return compareMachinesForDisplay(aMachine, bMachine, latestSnapshots);
+    });
+    const orderChanged = rows.some((row, index) => row !== sorted[index]);
+    if (orderChanged) sorted.forEach((row) => panel.appendChild(row));
+  }
+}
 
 function updateWatchdogBadges() {
   document.querySelectorAll(".tw-auto-badge").forEach((badge) => {
+    if (badge.dataset.channelReady !== "true") return;
     const machineId = badge.dataset.watchdogMachine;
     const stats = watchdogStats[machineId];
     if (stats) {
       const total = (stats.claudeCount || 0) + (stats.codexCount || 0);
-      if (total > 0) {
+      const signals = getMachineWatchdogSignals(machineId);
+      const waiting = signals.filter((signal) => signal.status === "pending" || signal.status === "cooldown");
+      badge.classList.toggle("tw-auto-badge-live", waiting.length > 0);
+      if (waiting.length > 0) {
+        badge.textContent = `⚠ ${waiting.length}`;
+        badge.title = waiting.map((signal) => `${signal.summary} · ${formatWatchdogSignalStatus(signal.status)}`).join(" | ");
+        badge.classList.add("has-approvals");
+      } else if (total > 0) {
         badge.textContent = `🤖 ${total}`;
-        badge.title = `Claude: ${stats.claudeCount || 0} | Codex: ${stats.codexCount || 0}`;
+        badge.title = `Claude: ${stats.claudeCount || 0} | Codex: ${stats.codexCount || 0}${stats.lastDetectionSummary ? ` | Ultima: ${stats.lastDetectionSummary}` : ""}`;
         badge.classList.add("has-approvals");
       } else {
         badge.textContent = "🤖 0";
@@ -895,244 +1050,14 @@ function updateWatchdogBadges() {
       }
     }
   });
-  updatePillarIcons();
-  updateApproveButtonCounters();
-  checkPendingApprovals();
 }
 
-function updatePillarIcons() {
-  document.querySelectorAll(".tw-pillar-machine").forEach((container) => {
-    const machineId = container.dataset.pillarMachine;
-    const stats = watchdogStats[machineId];
-    if (!stats) return;
-
-    const isActive = (state) => state && state !== "OFF" && state !== "no-window";
-
-    const tIcon = container.querySelector(".tw-pillar-icon.tw-pillar-t");
-    const xIcon = container.querySelector(".tw-pillar-icon.tw-pillar-x");
-    const cIcon = container.querySelector(".tw-pillar-icon.tw-pillar-c");
-
-    if (tIcon) tIcon.classList.toggle("tw-pillar-active", isActive(stats.telegramState));
-    if (xIcon) xIcon.classList.toggle("tw-pillar-active", isActive(stats.codexState));
-    if (cIcon) cIcon.classList.toggle("tw-pillar-active", isActive(stats.claudeState));
-  });
+function updateWatchdogUI() {
+  updateWatchdogBadges();
+  updateWatchdogRows();
+  renderWatchdogOverview();
+  resortMachineRows();
 }
-
-function updateApproveButtonCounters() {
-  let claudeActive = 0;
-  let codexActive = 0;
-  let claudePending = 0;
-  let codexPending = 0;
-
-  for (const [, stats] of Object.entries(watchdogStats)) {
-    if (!stats) continue;
-    const cs = stats.claudeState;
-    const xs = stats.codexState;
-    const cb = stats.claudeButtons || "";
-    const ts = stats.terminalState || "";
-
-    const csOpen = cs !== null && cs !== undefined && cs !== "no-window" && cs !== "OFF";
-    const xsOpen = xs !== null && xs !== undefined && xs !== "no-window" && xs !== "OFF";
-    if (csOpen) claudeActive++;
-    if (xsOpen) codexActive++;
-
-    // Pending = approval buttons detected or PENDING in state
-    if (cb.length > 0 || (cs && cs.includes("PENDING")) || ts.includes("CLAUDE_TERM:PENDING")) claudePending++;
-    if ((xs && xs.includes("PENDING")) || ts.includes("CODEX_TERM:PENDING")) codexPending++;
-  }
-
-  const claudeBtn = document.querySelector("#approveClaudeBtn");
-  const codexBtn = document.querySelector("#approveCodexBtn");
-  if (claudeBtn) claudeBtn.textContent = `(${claudePending}) Claude (${claudeActive})`;
-  if (codexBtn) codexBtn.textContent = `(${codexPending}) Codex (${codexActive})`;
-}
-
-function checkPendingApprovals() {
-  // Don't show if dismissed less than 30s ago
-  if (alertDismissed && Date.now() - alertDismissedAt < 30000) return;
-
-  const pendingClaude = [];
-  const pendingCodex = [];
-
-  for (const [machineId, stats] of Object.entries(watchdogStats)) {
-    if (!stats) continue;
-    const machine = machines.find((m) => m.id === machineId);
-    const mName = machine?.name || machineId;
-
-    // Check if Claude has approval buttons detected
-    if (stats.claudeButtons && stats.claudeButtons.length > 0) {
-      if (!pendingClaude.includes(mName)) pendingClaude.push(mName);
-    }
-    // Check claudeState for terminal pending
-    if (stats.claudeState && stats.claudeState.includes("PENDING")) {
-      if (!pendingClaude.includes(mName)) pendingClaude.push(mName);
-    }
-    // Check codexState for pending
-    if (stats.codexState && stats.codexState.includes("PENDING")) {
-      const machine = machines.find((m) => m.id === machineId);
-      if (machine) pendingCodex.push(machine.name || machineId);
-    }
-  }
-
-  const alert = document.getElementById("approvalAlert");
-  const backdrop = document.getElementById("approvalBackdrop");
-  const machineList = document.getElementById("approvalMachineList");
-
-  if (pendingClaude.length === 0 && pendingCodex.length === 0) {
-    alert.classList.remove("visible");
-    backdrop.classList.remove("visible");
-    alertDismissed = false;
-    return;
-  }
-
-  let html = "";
-  const pendingIds = [];
-  for (const [machineId, stats] of Object.entries(watchdogStats)) {
-    if (!stats) continue;
-    const machine = machines.find((m) => m.id === machineId);
-    const mName = machine?.name || machineId;
-    if (pendingClaude.includes(mName) || pendingCodex.includes(mName)) {
-      pendingIds.push(machineId);
-    }
-  }
-  for (const name of pendingClaude) {
-    html += `<span class="tw-alert-machine-item"><span class="claude-tag">C</span> ${name}</span>`;
-  }
-  for (const name of pendingCodex) {
-    html += `<span class="tw-alert-machine-item"><span class="codex-tag">X</span> ${name}</span>`;
-  }
-  // Add screenshots of pending machines
-  html += `<div class="tw-alert-screenshots">`;
-  for (const mid of pendingIds) {
-    html += `<img class="tw-alert-screenshot" src="${apiUrl(`/api/screenshots/${mid}`)}?t=${Date.now()}" alt="Captura" onerror="this.style.display='none'">`;
-  }
-  html += `</div>`;
-  machineList.innerHTML = html;
-
-  // Show/hide specific approve buttons
-  document.getElementById("alertApproveClaude").style.display = pendingClaude.length ? "" : "none";
-  document.getElementById("alertApproveCodex").style.display = pendingCodex.length ? "" : "none";
-
-  alert.classList.add("visible");
-  backdrop.classList.add("visible");
-}
-
-window.dismissApprovalAlert = function() {
-  document.getElementById("approvalAlert").classList.remove("visible");
-  document.getElementById("approvalBackdrop").classList.remove("visible");
-  alertDismissed = true;
-  alertDismissedAt = Date.now();
-};
-
-window.alertApprove = async function(target) {
-  const btn = document.getElementById(target === "claude" ? "alertApproveClaude" : "alertApproveCodex");
-  btn.textContent = "...";
-  btn.disabled = true;
-  try {
-    await fetch(apiUrl("/api/teamwork/approve"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ target, onlyPending: true })
-    });
-  } catch { /* ignore */ }
-  btn.disabled = false;
-  btn.textContent = target === "claude" ? "Claude" : "Codex";
-  dismissApprovalAlert();
-  setTimeout(loadSnapshots, 4000);
-  setTimeout(loadWatchdogStats, 5000);
-};
-
-// ─── Init ──────────────────────────────────────────────────────────
-
-// ─── OCR Preview: show latest screenshots next to history ────────────
-
-function updateOcrPreview() {
-  const container = document.getElementById("ocrScreens");
-  if (!container) return;
-  const onlineMachines = machines.filter((m) => m.status === "online" || m.status === "idle" || m.status === "busy");
-  if (!onlineMachines.length) {
-    container.innerHTML = '<p style="color:var(--muted);font-size:11px">Sin máquinas online</p>';
-    return;
-  }
-  container.innerHTML = onlineMachines.map((m) => `
-    <div class="tw-ocr-screen">
-      <img src="${apiUrl(`/api/screenshots/${m.id}`)}?t=${Date.now()}" alt="${m.name}" onerror="this.style.display='none'">
-      <span class="tw-ocr-screen-label">${m.name}</span>
-    </div>
-  `).join("");
-}
-
-// ─── Telegram Inbox: receive tasks from Telegram group ───────────────
-
-const tgInbox = document.querySelector("#tgInbox");
-
-async function loadTelegramInbox() {
-  if (isStaticMode) return;
-  try {
-    const res = await fetch(apiUrl("/api/teamwork/telegram-inbox"), { cache: "no-store" });
-    const data = await res.json();
-    if (!data.ok || !data.messages?.length) {
-      tgInbox.style.display = "none";
-      tgInbox.innerHTML = "";
-      return;
-    }
-    tgInbox.style.display = "flex";
-    tgInbox.innerHTML = data.messages.map((msg, i) => `
-      <div class="tw-tg-msg" title="Clic en Usar para cargar como prompt">
-        <span class="tw-tg-icon">📱</span>
-        <div class="tw-tg-body">
-          <div class="tw-tg-from">${msg.from} via Telegram <span style="font-size:10px;padding:1px 5px;border-radius:4px;color:white;background:${msg.target === "claude" ? "#d63031" : "#0984e3"}">${msg.target === "claude" ? "Claude" : "Codex"}</span></div>
-          <div class="tw-tg-text">${msg.text || "(imagen)"}</div>
-          <div class="tw-tg-time">${timeAgo(msg.date)}</div>
-        </div>
-        ${msg.image ? `<img class="tw-tg-thumb" src="${msg.image}" alt="Imagen">` : ""}
-        <div class="tw-tg-actions">
-          <button class="tw-tg-use" onclick="event.stopPropagation(); useTgMessage(${i}, ${JSON.stringify(msg.text || "").replace(/"/g, '&quot;')}, '${msg.target || "codex"}')">${msg.target === "claude" ? "→ Claude" : "→ Codex"}</button>
-          <button class="tw-tg-dismiss" onclick="event.stopPropagation(); dismissTgMessage(${i})">✕</button>
-        </div>
-      </div>
-    `).join("");
-    // Always load last message into prompt field + pre-select target
-    const last = data.messages[data.messages.length - 1];
-    const input = document.querySelector("#quickInput");
-    const targetSelect = document.querySelector("#sendAllTarget");
-    if (last?.text && input) {
-      input.value = last.text;
-      const targetLabel = last.target === "claude" ? "Claude" : "Codex";
-      const imgIcon = last.image ? " 📎" : "";
-      input.placeholder = `📱 ${last.from} → ${targetLabel}${imgIcon}: listo para enviar`;
-      if (targetSelect) targetSelect.value = last.target || "codex";
-      pendingTgImage = last.image || null;
-    }
-  } catch { /* ignore */ }
-}
-
-let pendingTgImage = null; // image URL from Telegram message
-
-window.useTgMessage = function(index, text, target) {
-  const input = document.querySelector("#quickInput");
-  const targetSelect = document.querySelector("#sendAllTarget");
-  if (input) {
-    input.value = text || "";
-    if (targetSelect && target) targetSelect.value = target;
-    // Find the image from the inbox data
-    const msgEl = document.querySelectorAll(".tw-tg-msg")[index];
-    const thumb = msgEl?.querySelector(".tw-tg-thumb");
-    pendingTgImage = thumb?.src || null;
-    input.focus();
-  }
-};
-
-window.dismissTgMessage = async function(index) {
-  try {
-    await fetch(apiUrl("/api/teamwork/telegram-inbox/dismiss"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ index })
-    });
-    loadTelegramInbox();
-  } catch { /* ignore */ }
-};
 
 // ─── Init ──────────────────────────────────────────────────────────
 
@@ -1140,15 +1065,7 @@ loadMachines();
 loadHistory();
 setTimeout(loadSnapshots, 2000);
 setTimeout(loadWatchdogStats, 3000);
-setTimeout(loadTelegramState, 3500);
-setTimeout(loadTelegramInbox, 4000);
-setTimeout(updateOcrPreview, 5000);
+setInterval(loadMachines, MACHINE_REFRESH_MS);
 setInterval(loadHistory, 10_000);
-setInterval(loadSnapshots, 30_000);
-setInterval(loadWatchdogStats, 15_000);
-// Refresh machines status every 60s (synced with server healthCheck)
-setInterval(() => { loadMachines(); }, 60_000);
-// Poll Telegram inbox every 10s
-setInterval(loadTelegramInbox, 10_000);
-// Refresh OCR preview every 30s
-setInterval(updateOcrPreview, 30_000);
+setInterval(loadSnapshots, SNAPSHOT_REFRESH_MS);
+setInterval(loadWatchdogStats, WATCHDOG_REFRESH_MS);
