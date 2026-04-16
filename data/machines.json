@@ -1,6 +1,6 @@
 {
   "team": "AdmiraNext Team",
-  "updatedAt": "2026-04-10T08:17:31Z",
+  "updatedAt": "2026-04-16T19:39:15.634Z",
   "tailnet": "tail48b61c.ts.net",
   "machines": [
     {
@@ -13,10 +13,10 @@
       "machineRole": "Servidor central / Hub",
       "location": "Madrid",
       "platform": "macOS",
-      "status": "offline",
-      "lastSeen": "2026-04-10T07:47:17Z",
+      "status": "online",
+      "lastSeen": "2026-04-16T19:39:10.695Z",
       "currentFocus": "Offline — ultima conexion hace 5m ago",
-      "note": "Tailscale: macmini.tail48b61c.ts.net",
+      "note": "Sleep enviado desde dashboard",
       "ssh": {
         "enabled": true,
         "user": "csilvasantin",
@@ -36,15 +36,16 @@
       "location": "Madrid",
       "platform": "macOS",
       "status": "offline",
-      "lastSeen": "2026-04-08T11:37:03Z",
+      "lastSeen": "2026-04-16T19:35:25.159Z",
       "currentFocus": "Offline — ultima conexion hace 1m ago",
       "note": "Tailscale: macbookairnines.tail48b61c.ts.net",
       "ssh": {
-        "enabled": true,
+        "enabled": false,
         "user": "csilvasantin",
         "host": "macbookairnines.tail48b61c.ts.net",
         "ip_tailscale": "100.76.96.50",
-        "connect_tailscale": "ssh -o ProxyCommand='tailscale nc %h %p' csilvasantin@macbookairnines"
+        "connect_tailscale": "ssh -o ProxyCommand='tailscale nc %h %p' csilvasantin@macbookairnines",
+        "_disabled_reason": "Tailscale SSH on offline Plata spams login popups; re-enable when plata reachable again"
       }
     },
     {
@@ -58,7 +59,7 @@
       "location": "Madrid",
       "platform": "macOS",
       "status": "online",
-      "lastSeen": "2026-04-10T08:17:31Z",
+      "lastSeen": "2026-04-16T19:39:10.827Z",
       "currentFocus": "Online — detectado por Tailscale",
       "note": "Tailscale: macbookpronegro14.tail48b61c.ts.net",
       "ssh": {
@@ -80,7 +81,7 @@
       "location": "Madrid",
       "platform": "macOS",
       "status": "online",
-      "lastSeen": "2026-04-09T18:53:24Z",
+      "lastSeen": "2026-04-16T19:39:10.937Z",
       "currentFocus": "Online — detectado por Tailscale",
       "note": "Tailscale: macbookair16.tail48b61c.ts.net",
       "ssh": {
@@ -102,7 +103,7 @@
       "location": "Madrid",
       "platform": "macOS",
       "status": "offline",
-      "lastSeen": "2026-04-08T09:19:17Z",
+      "lastSeen": "2026-04-16T19:39:15.626Z",
       "currentFocus": "Offline — ultima conexion hace 1d ago",
       "note": "Tailscale app: macbookairluna (100.98.68.63) | Tailscale CLI: macbookairluna-1 (100.71.252.58)",
       "ssh": {
@@ -124,8 +125,8 @@
       "machineRole": "Equipo activo",
       "location": "Madrid",
       "platform": "macOS",
-      "status": "online",
-      "lastSeen": "2026-04-09T19:35:25Z",
+      "status": "offline",
+      "lastSeen": "2026-04-16T19:39:15.633Z",
       "currentFocus": "Online — detectado por Tailscale",
       "note": "Tailscale: macbook-air-de-carla.tail48b61c.ts.net",
       "ssh": {
@@ -146,8 +147,8 @@
       "machineRole": "Direccion",
       "location": "Madrid",
       "platform": "macOS",
-      "status": "offline",
-      "lastSeen": "2026-04-10T07:47:17Z",
+      "status": "online",
+      "lastSeen": "2026-04-16T19:39:10.969Z",
       "currentFocus": "Offline — ultima conexion hace 55m ago",
       "note": "Tailscale, SSH y GitHub operativos. Chrome, Claude y Codex instalados. ClaudeBot y CodexBot activos. Perfil principal CEO listo para trabajo diario.",
       "ssh": {
@@ -184,16 +185,17 @@
       "machineRole": "Equipo compartido del consejo",
       "location": "Madrid",
       "platform": "macOS",
-      "status": "online",
-      "lastSeen": "2026-04-10T08:17:31Z",
+      "status": "offline",
+      "lastSeen": "2026-04-16T19:35:25.183Z",
       "currentFocus": "Online — detectado por Tailscale",
       "note": "8o Mac del consejo. Equipo rotatorio sin persona fija. Tailscale y SSH operativos.",
       "ssh": {
-        "enabled": true,
+        "enabled": false,
         "user": "csilvasantin",
         "host": "macbookairplata.tail48b61c.ts.net",
         "ip_tailscale": "100.76.96.50",
-        "connect_tailscale": "ssh csilvasantin@100.76.96.50"
+        "connect_tailscale": "ssh csilvasantin@100.76.96.50",
+        "_disabled_reason": "Tailscale SSH on offline Plata spams login popups; re-enable when plata reachable again"
       }
     },
     {
@@ -325,8 +327,8 @@
       "machineRole": "Direccion creativa",
       "location": "Madrid",
       "platform": "macOS",
-      "status": "online",
-      "lastSeen": "2026-04-09T09:55:08Z",
+      "status": "offline",
+      "lastSeen": "2026-04-16T19:39:15.634Z",
       "currentFocus": "Online — detectado por Tailscale",
       "note": "Tailscale: macbookairazul (100.84.81.45)",
       "ssh": {
@@ -335,6 +337,44 @@
         "host": "macbookairazul.tail48b61c.ts.net",
         "ip_tailscale": "100.84.81.45",
         "connect_tailscale": "ssh csilvasantin@100.84.81.45"
+      }
+    },
+    {
+      "id": "admira-macbookairold",
+      "unitType": "council",
+      "color": "plata",
+      "member": "Dieter Rams",
+      "role": "CDO",
+      "name": "MacBookAirOld",
+      "machineRole": "Equipo principal",
+      "location": "Barcelona",
+      "platform": "macOS",
+      "status": "maintenance",
+      "lastSeen": "2026-04-12T10:03:59.040Z",
+      "currentFocus": "Onboarding y puesta a punto del equipo",
+      "note": "Alta autoservicio. Tailscale pendiente | SSH pendiente | GitHub pendiente | Claude pendiente | Codex pendiente | ClaudeBot pendiente | CodexBot pendiente.",
+      "ssh": {
+        "enabled": false,
+        "user": "csilvasantin",
+        "host": "macbookairold.tail48b61c.ts.net",
+        "ip_tailscale": "",
+        "connect_tailscale": "",
+        "hostAlias": "macbookairold"
+      },
+      "intake": {
+        "source": "new-member-form",
+        "submittedAt": "2026-04-12T10:03:59.040Z",
+        "teamArea": "Admira Next",
+        "checklist": {
+          "tailscaleReady": false,
+          "sshReady": false,
+          "githubReady": false,
+          "claudeReady": false,
+          "codexReady": false,
+          "claudeBotReady": false,
+          "codexBotReady": false,
+          "needsHelp": ""
+        }
       }
     }
   ]
