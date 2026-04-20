@@ -1,0 +1,174 @@
+:root {
+  --bg-a: #08111c;
+  --bg-b: #0f2940;
+  --bg-c: #153d35;
+  --card: rgba(6, 16, 26, 0.62);
+  --card-border: rgba(180, 228, 222, 0.18);
+  --text: #eef7f4;
+  --muted: #b2c9c2;
+  --accent: #7ef0cb;
+  --accent-strong: #f7c85d;
+  --shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+  --radius: 28px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+  margin: 0;
+  font-family: "Avenir Next", "Segoe UI", sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(circle at top left, rgba(126, 240, 203, 0.18), transparent 26%),
+    radial-gradient(circle at top right, rgba(247, 200, 93, 0.18), transparent 22%),
+    linear-gradient(140deg, var(--bg-a), var(--bg-b) 52%, var(--bg-c));
+}
+
+body {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+}
+
+.kiosk-shell {
+  width: min(1440px, 100%);
+  min-height: 100vh;
+  padding: 40px;
+  display: grid;
+  gap: 24px;
+}
+
+.hero,
+.status-card,
+.panel {
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  backdrop-filter: blur(20px);
+  box-shadow: var(--shadow);
+}
+
+.hero {
+  border-radius: calc(var(--radius) + 8px);
+  padding: 34px 38px;
+}
+
+.eyebrow,
+.panel-label,
+.label {
+  margin: 0 0 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-size: 0.78rem;
+  color: var(--accent);
+}
+
+.hero h1,
+.panel h2 {
+  margin: 0;
+  line-height: 0.98;
+}
+
+.hero h1 {
+  font-size: clamp(3.4rem, 8vw, 7.5rem);
+}
+
+.subtitle {
+  margin: 16px 0 0;
+  font-size: clamp(1.1rem, 2vw, 1.6rem);
+  color: var(--muted);
+  max-width: 30ch;
+}
+
+.status-strip,
+.content-grid {
+  display: grid;
+  gap: 20px;
+}
+
+.status-strip {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.status-card,
+.panel {
+  border-radius: var(--radius);
+}
+
+.status-card {
+  padding: 24px;
+}
+
+.status-card strong {
+  display: block;
+  font-size: clamp(1.8rem, 3vw, 3rem);
+}
+
+.clock-card strong {
+  color: var(--accent-strong);
+}
+
+.content-grid {
+  grid-template-columns: minmax(0, 1.25fr) minmax(340px, 0.95fr);
+}
+
+.panel {
+  padding: 28px;
+}
+
+.focus-panel h2 {
+  font-size: clamp(2.2rem, 4vw, 4.6rem);
+  max-width: 14ch;
+}
+
+.focus-panel p:last-child {
+  margin: 18px 0 0;
+  font-size: 1.2rem;
+  color: var(--muted);
+}
+
+.machine-panel h2 {
+  font-size: clamp(1.8rem, 3vw, 2.6rem);
+  margin-bottom: 18px;
+}
+
+.machine-meta {
+  margin: 0;
+  display: grid;
+  gap: 14px;
+}
+
+.machine-meta div {
+  display: grid;
+  gap: 6px;
+}
+
+.machine-meta dt {
+  color: var(--accent);
+  font-size: 0.86rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+}
+
+.machine-meta dd {
+  margin: 0;
+  font-size: 1.14rem;
+}
+
+@media (max-width: 900px) {
+  .kiosk-shell {
+    padding: 20px;
+  }
+
+  .status-strip,
+  .content-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero h1 {
+    line-height: 1;
+  }
+}

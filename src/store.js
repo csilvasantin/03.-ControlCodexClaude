@@ -162,6 +162,14 @@ export async function updateMachineSync(id, payload) {
     machine.currentFocus = payload.currentFocus.trim() || machine.currentFocus;
   }
 
+  if (payload.agent && typeof payload.agent === "object") {
+    machine.agent = {
+      ...(machine.agent ?? {}),
+      ...payload.agent,
+      updatedAt: new Date().toISOString()
+    };
+  }
+
   machine.lastSeen = new Date().toISOString();
   data.updatedAt = new Date().toISOString();
 

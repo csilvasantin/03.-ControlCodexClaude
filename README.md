@@ -132,6 +132,33 @@ Content-Type: application/json
 
 La publicación pública funciona en modo solo lectura con GitHub Pages y carga `machines.json` directamente.
 
+## Vista kiosko
+
+El panel incluye una vista preparada para pantalla completa:
+
+```text
+http://127.0.0.1:3030/kiosk.html?machineId=admira-mac-02
+```
+
+También queda publicada en GitHub Pages para probarla desde otra máquina:
+
+```text
+https://csilvasantin.github.io/AdmiraNext-Team/kiosk.html?machineId=admira-mac-02
+```
+
+Está pensada para dejar una máquina en modo escaparate o control operativo continuo.
+
+## Agente por máquina
+
+En `/Users/csilvasantin/Documents/Codex/AdmiraNext-Agent` hay un agente macOS que:
+
+1. evita reposo y suspensión de pantalla;
+2. inhibe el salvapantallas mediante actividad periódica;
+3. abre la vista kiosko;
+4. sincroniza el heartbeat contra este panel.
+
+Cuando una máquina tiene el agente activo, el panel la marca como `activo`. Si deja de reportar heartbeat, cambia a `sin señal`.
+
 ## Consejo de Administracion
 
 El consejo vive en `consejeros/` — 8 perfiles JSON (uno por silla) con personalidad, dominio, leyenda inspiradora y configuracion de bot de Telegram.
@@ -154,4 +181,6 @@ Ver `consejeros/README.md` para detalle completo.
 4. activar modo LLM con API key de Anthropic;
 5. añadir login o clave simple al panel web;
 6. separar miembros, equipos y tareas en entidades propias;
-7. integrar bots o agentes por maquina.
+7. integrar bots o agentes por maquina;
+8. endurecer el agente por máquina con políticas por sistema operativo;
+9. guardar historial de estados y cambios de foco.

@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AdmiraNext Kiosk</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <link rel="stylesheet" href="./kiosk.css?v=20260420-1">
+  </head>
+  <body>
+    <main class="kiosk-shell">
+      <section class="hero">
+        <p class="eyebrow">Modo operativo</p>
+        <h1 id="kiosk-title">AdmiraNext</h1>
+        <p class="subtitle" id="kiosk-subtitle">Inicializando vista kiosko...</p>
+      </section>
+
+      <section class="status-strip">
+        <div class="status-card">
+          <span class="label">Estado</span>
+          <strong id="machine-status">--</strong>
+        </div>
+        <div class="status-card">
+          <span class="label">Última señal</span>
+          <strong id="machine-last-seen">--</strong>
+        </div>
+        <div class="status-card">
+          <span class="label">Equipos online</span>
+          <strong id="fleet-online">--</strong>
+        </div>
+        <div class="status-card clock-card">
+          <span class="label">Hora local</span>
+          <strong id="clock">--:--</strong>
+        </div>
+      </section>
+
+      <section class="content-grid">
+        <article class="panel focus-panel">
+          <p class="panel-label">Foco actual</p>
+          <h2 id="machine-focus">Sin foco operativo</h2>
+          <p id="machine-note">Esperando sincronización...</p>
+        </article>
+
+        <article class="panel machine-panel">
+          <p class="panel-label">Máquina</p>
+          <h2 id="machine-name">No seleccionada</h2>
+          <dl class="machine-meta">
+            <div><dt>ID</dt><dd id="machine-id">--</dd></div>
+            <div><dt>Responsable</dt><dd id="machine-member">--</dd></div>
+            <div><dt>Rol</dt><dd id="machine-role">--</dd></div>
+            <div><dt>Ubicación</dt><dd id="machine-location">--</dd></div>
+            <div><dt>Plataforma</dt><dd id="machine-platform">--</dd></div>
+          </dl>
+        </article>
+      </section>
+    </main>
+
+    <script src="./kiosk.js?v=20260420-1" type="module"></script>
+  </body>
+</html>

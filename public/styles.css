@@ -9,6 +9,12 @@
   --busy: #d0891f;
   --offline: #8b5b63;
   --maintenance: #546e8a;
+  --agent-active-bg: rgba(26, 127, 90, 0.12);
+  --agent-active-ink: #0b6b49;
+  --agent-stale-bg: rgba(208, 137, 31, 0.12);
+  --agent-stale-ink: #9a5d03;
+  --agent-missing-bg: rgba(84, 110, 138, 0.12);
+  --agent-missing-ink: #475d75;
 }
 
 * {
@@ -662,6 +668,41 @@ dt {
 dd {
   margin: 6px 0 0;
   font-size: 15px;
+}
+
+.agent-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.agent-pill::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.agent-pill.agent-active {
+  background: var(--agent-active-bg);
+  color: var(--agent-active-ink);
+}
+
+.agent-pill.agent-stale {
+  background: var(--agent-stale-bg);
+  color: var(--agent-stale-ink);
+}
+
+.agent-pill.agent-missing {
+  background: var(--agent-missing-bg);
+  color: var(--agent-missing-ink);
 }
 
 .note {

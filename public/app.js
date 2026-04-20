@@ -29,6 +29,7 @@ const STATUS_PRIORITY = {
   idle: 3,
   online: 4
 };
+const AGENT_FRESHNESS_MS = 3 * 60 * 1000;
 
 function getChecklist(machine) {
   return machine.intake?.checklist ?? null;
@@ -159,6 +160,31 @@ function formatDate(value) {
   }
 }
 
+function getAgentState(machine) {
+  const lastHeartbeat = machine.agent?.lastHeartbeat ?? machine.agent?.updatedAt ?? null;
+  const timestamp = lastHeartbeat ? new Date(lastHeartbeat).getTime() : null;
+  const isFresh = typeof timestamp === "number" && Number.isFinite(timestamp) && Date.now() - timestamp <= AGENT_FRESHNESS_MS;
+
+  if (machine.agent?.running && isFresh) {
+    return {
+      label: "activo",
+      className: "agent-active"
+    };
+  }
+
+  if (machine.agent) {
+    return {
+      label: "sin señal",
+      className: "agent-stale"
+    };
+  }
+
+  return {
+    label: "no instalado",
+    className: "agent-missing"
+  };
+}
+
 function createSummary(data) {
   const machines = data.machines;
   const members = new Set(machines.map((item) => item.member));
@@ -170,9 +196,12 @@ function createSummary(data) {
     return progress.total > 0 && progress.completed === progress.total;
   }).length;
   const helpCount = machines.filter((item) => hasActiveHelp(item)).length;
+  const agentStates = machines.map(getAgentState);
   const counts = [
     ["maquinas", machines.length],
     ["miembros", members.size],
+    ["agentes activos", agentStates.filter((item) => item.label === "activo").length],
+    ["agentes sin señal", agentStates.filter((item) => item.label === "sin señal").length],
     ["consejo", council.length],
     ["pcs", pcs.length],
     ["ssh listo", remoteReady],
@@ -240,6 +269,7 @@ function renderSection(groupKey, machines) {
     const helpText = fragment.querySelector(".help-text");
     const checklist = getChecklistProgress(machine);
     const help = machine.intake?.checklist?.needsHelp?.trim() || "";
+    const agentState = getAgentState(machine);
 
     fragment.querySelector(".member").textContent = machine.member;
     fragment.querySelector(".name").textContent = machine.name;
@@ -253,6 +283,7 @@ function renderSection(groupKey, machines) {
     fragment.querySelector(".color").textContent = machine.color ?? "—";
     fragment.querySelector(".last-seen").textContent = formatDate(machine.lastSeen);
     noteNode.textContent = machine.note || "Sin nota operativa";
+    fragment.querySelector(".agent-status").innerHTML = `<span class="agent-pill ${agentState.className}">${agentState.label}</span>`;
     fragment.querySelector(".current-focus").textContent = machine.currentFocus ?? "Sin foco operativo";
     remoteCopy.textContent = getRemoteCommand(machine) || "Sin comando remoto registrado todavía";
 
@@ -356,7 +387,7 @@ async function fetchData() {
     isStaticMode = false;
     return await response.json();
   } catch {
-    const response = await fetch("./machines.json?v=20260401-2", { cache: "no-store" });
+    const response = await fetch("./machines.json?v=20260420-2", { cache: "no-store" });
     isStaticMode = true;
     return await response.json();
   }
@@ -369,3 +400,4 @@ async function load() {
 }
 
 load();
+setInterval(load, 30000);
